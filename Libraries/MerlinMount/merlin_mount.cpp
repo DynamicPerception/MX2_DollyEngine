@@ -22,7 +22,7 @@
   
 */
 
-#include "WConstants.h"		//all things wiring / arduino
+#include "Arduino.h"		//all things wiring / arduino
 
 #include "merlin_mount.h"
 #include "HardwareSerial.h"
