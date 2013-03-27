@@ -94,17 +94,6 @@ void motor_set_speed( byte motor, unsigned int m_speed ) {
     float m_pct = ( (float) m_speed / (float) m_maxsms[motor] );  
 
     m_sms_tm[motor] = 60000.0 * m_pct;
-
-    if( m_smsfx[motor] == false ) {
-      // not in fixed mode, set sms time to 
-      // be calculated off of interval
-      float interval = 60 / cam_interval;
-
-      m_sms_tm[motor] = 60000.0 * m_pct;
-      m_sms_tm[motor] = m_sms_tm[motor] / interval;
-      
-      
-    }
     
     // calibrate
     m_sms_tm[motor] *= motor_cal_adjust(0,motor,0,m_wasdir[motor]);

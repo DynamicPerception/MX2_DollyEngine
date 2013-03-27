@@ -39,10 +39,10 @@
 #include <LiquidCrystal.h>
 #include "MsTimer2.h"
 #include "TimerOne.h"
-#include "merlin_mount.h";
+#include "merlin_mount.h"
 
 
-#define FIRMWARE_VERSION  900
+#define FIRMWARE_VERSION  92
 
   // motor PWM
 #define MOTOR0_P 5
@@ -140,13 +140,11 @@ prog_char manual_menu_3[] PROGMEM = "Scope";
 
 prog_char axis_menu_1[] PROGMEM = "Ramp Shots";
 prog_char axis_menu_2[] PROGMEM = "RPM";
-prog_char axis_menu_3[] PROGMEM = "Fixed SMS";
 prog_char axis_menu_4[] PROGMEM = "Angle";
 prog_char axis_menu_5[] PROGMEM = "Calibrate";
 prog_char axis_menu_6[] PROGMEM = "Slow Mode IPM";
 prog_char axis_menu_7[] PROGMEM = "Dist. per Rev";
 prog_char axis_menu_8[] PROGMEM = "Min Pulse";
-prog_char axis_menu_9[] PROGMEM = "Axis Type";
 prog_char axis_menu_10[] PROGMEM = "Lead In";
 prog_char axis_menu_11[] PROGMEM = "Lead Out";
 prog_char axis_menu_12[] PROGMEM = "Cal. Constant";
@@ -175,6 +173,10 @@ prog_char set_menu_11[] PROGMEM = "Cal. Spd Low";
 prog_char set_menu_12[] PROGMEM = "Cal. Spd Hi";
 prog_char set_menu_13[] PROGMEM = "AltOut Pre ms";
 prog_char set_menu_14[] PROGMEM = "AltOut Post ms";
+prog_char set_menu_15[] PROGMEM = "USB Trigger";
+prog_char set_menu_16[] PROGMEM = "Invert Dir";
+prog_char set_menu_17[] PROGMEM = "Invert I/O";
+
 
 prog_char scope_menu_1[] PROGMEM = "Pan Man. Spd.";
 prog_char scope_menu_2[] PROGMEM = "Tilt Man. Spd.";
@@ -185,15 +187,15 @@ PROGMEM const char *menu_str[]  = { menu_1, menu_2, menu_3, menu_4, menu_5, menu
 
 PROGMEM const char *man_str[]   = { manual_menu_1, manual_menu_2, manual_menu_3 };
 
-PROGMEM const char *axis0_str[] = { axis_menu_1, axis_menu_10, axis_menu_11, axis_menu_2, axis_menu_3, axis_menu_4, axis_menu_5, axis_menu_12, axis_menu_6, axis_menu_7, axis_menu_8, axis_menu_9 };
-PROGMEM const char *axis1_str[] = { axis_menu_1, axis_menu_10, axis_menu_11, axis_menu_2, axis_menu_3, axis_menu_4, axis_menu_5, axis_menu_12, axis_menu_6, axis_menu_7, axis_menu_8, axis_menu_9 };
+PROGMEM const char *axis0_str[] = { axis_menu_1, axis_menu_10, axis_menu_11, axis_menu_2, axis_menu_4, axis_menu_5, axis_menu_12, axis_menu_6, axis_menu_7, axis_menu_8 };
+PROGMEM const char *axis1_str[] = { axis_menu_1, axis_menu_10, axis_menu_11, axis_menu_2, axis_menu_4, axis_menu_5, axis_menu_12, axis_menu_6, axis_menu_7, axis_menu_8 };
 PROGMEM const char *cam_str[]   = { camera_menu_1, camera_menu_2, camera_menu_3, camera_menu_4, camera_menu_5, camera_menu_6, camera_menu_7, camera_menu_8 };
-PROGMEM const char *set_str[]   = { set_menu_1, set_menu_2, set_menu_3, set_menu_4, set_menu_5, set_menu_6, set_menu_7, set_menu_8, set_menu_9, set_menu_10, set_menu_11, set_menu_12, set_menu_13, set_menu_14 };
+PROGMEM const char *set_str[]   = { set_menu_1, set_menu_2, set_menu_3, set_menu_4, set_menu_5, set_menu_6, set_menu_7, set_menu_8, set_menu_9, set_menu_10, set_menu_11, set_menu_12, set_menu_13, set_menu_14, set_menu_15, set_menu_16, set_menu_17 };
 PROGMEM const char *scope_str[] = { scope_menu_1, scope_menu_2 };
 
  // max number of inputs for each menu (in order listed above, starting w/ 0)
 
- byte max_menu[7]  = {5,2,10,10,7,13,1};
+ byte max_menu[7]  = {5,2,9,9,7,16,1};
 
  // support a history of menus visited up to 5 levels deep
 byte hist_menu[5] = {0,0,0,0,0};
@@ -247,6 +249,9 @@ unsigned long input_last_tm = 0;
 
  // show cm instead of inch?
 boolean ui_is_metric = false;
+ // invert L/R displays?
+ boolean ui_invdir = false;
+ 
   // floats are input in tenths?
 boolean ui_float_tenths = false;
 
@@ -387,10 +392,7 @@ byte m_min_pulse[2] = { 125, 125 };
  // calibration points
 byte motor_spd_cal[2] = {1,40};
 
-  // linear or rotation type?
-byte m_type[2] = {0,0};
-  // fixed sms?
-byte m_smsfx[2] = {1,1};
+
   // maximum sms distance
 unsigned int m_maxsms[2] = { max_ipm[0] * 100, max_ipm[1] * 100};
 
@@ -469,7 +471,7 @@ boolean merlin_enabled = false;
 byte  merlin_dir[2]        = {0,0};
 byte  merlin_wasdir[2]     = {0,0};
 float merlin_speeds[2]     = {0.0,0.0};
-float merlin_man_spd[2]    = {1440.0,1440.0};
+float merlin_man_spd[2]    = {250.0,250.0};
 
  /*
    
@@ -482,6 +484,11 @@ float merlin_man_spd[2]    = {1440.0,1440.0};
 
 byte merlin_flags = 0;
 
+ // usb trigger flag
+boolean gb_enabled = false;
+
+ // default alt I/O rising/falling direction
+byte altio_dir = FALLING;
 
  // initialize LCD object
 LiquidCrystal lcd(LCD_RS, LCD_EN, LCD_D4, LCD_D5, LCD_D6, LCD_D7);
@@ -543,6 +550,13 @@ void setup() {
 
 void loop() {
 
+      // check for signal from gbtimelapse serial command.
+      // we check here to prevent queuing commands when stopped
+      
+  if( gb_enabled == true && gbtl_trigger() == true ) {
+    external_interval |= B00100000;
+  }
+
   if( run_status & B10000000 ) {
     // program is running
     main_loop_handler();
@@ -575,6 +589,7 @@ void main_loop_handler() {
   static boolean do_fire        = false;
   static boolean ext_trip       = false;
   static byte    cam_repeated   = 0;
+  
   
   if( cam_max > 0 && shots >= cam_max && ( ok_stop || (m_speeds[0] <= 0.0 && m_speeds[1] <= 0.0) || motor_sl_mod ) ) {
     
@@ -709,11 +724,11 @@ void main_loop_handler() {
     if( motors_clear == true && merlin_enabled  && ! motor_sl_mod ) {
         // send merlin head to move sms distances (if desired)             
   
-      if( merlin_speeds[0] > 0 ) {        
+      if( merlin_speeds[0] > 0.0 ) {        
         merlin_send_angle(0, merlin_speeds[0]);
         ok_stop = false;
       }
-      if( merlin_speeds[1] > 0 ) {
+      if( merlin_speeds[1] > 0.0 ) {
         merlin_send_angle(1, merlin_speeds[1]);
         ok_stop = false;
       }
@@ -766,7 +781,7 @@ void main_loop_handler() {
       ok_stop      = false;
     
   }   
-  else if( external_interval & B11000000 ) {
+  else if( gb_enabled == true || external_interval & B11000000 ) {
     // external intervalometer is engaged
     
     if( external_interval & B00100000 ) {
@@ -839,6 +854,11 @@ void main_loop_handler() {
 void start_executing() {
   // starts program execution
   
+    // clear out external interval flag in case it was
+    // set while stopped.
+    
+   external_interval &= B11011111;
+  
    run_status |= B10010000;
   
     // turn on motors
@@ -861,4 +881,20 @@ void stop_executing() {
   motor_stop_all();
 }
 
+
+boolean gbtl_trigger() {
   
+  if( Serial.available() > 0 ) {
+    char thsChar = Serial.read();
+    
+    if( thsChar == 'T' ) {
+      return true;
+    }
+    else {
+      return false;
+    }
+  }
+  
+  return false;
+}
+

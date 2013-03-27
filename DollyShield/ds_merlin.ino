@@ -39,10 +39,13 @@ void merlin_set_speed(byte axis, float spd) {
     // TODO: convert displayed degrees to values 
     // absolute in merlin
     
-  char resp[16];
-  
+ // char resp[16]; - AC:20120114: not needed anymore
+
+
   merlin_speeds[axis] = spd;
-  
+  // AC:20120115: Set Ratio to 1 before setting speed to ensure correct calculations
+  // Ratio 3 is only used in manual move
+  merlin.setRatio(axis+1, 1);
   merlin.setSpeed(axis+1, spd);
 }
 
@@ -53,7 +56,9 @@ void merlin_send_angle(byte axis, float angle) {
     // set motor free-running flag
   merlin_flags |= (B10000000 >> axis);
   
-  merlin.driveToPosition(axis+1, merlin_dir[axis], angle);
+   // AC:20120115: Switching to custom drive mode
+  // merlin.driveToPosition(axis+1, merlin_dir[axis], angle);
+  merlin.moveAngle(axis+1, merlin_dir[axis], angle);
 }
 
 byte merlin_running(byte axis) {
@@ -85,9 +90,22 @@ void merlin_run(byte axis) {
 
     // for continuous motion, our speeds are based
     // on 1x ratio
-  merlin.setRatio(axis+1, 1); 
+    
+    // AC:20120114: removed as ratio is set in set_speed()
+ // merlin.setRatio(axis+1, 1); 
   
   merlin.startMoving(axis+1, merlin_dir[axis]);
+}
+
+// AC:20120114: added function for manual move in the menu
+void merlin_move_manual(byte axis, byte dir) {
+  
+  // moving at ratio 3 as it works better with higher load (does not slip)
+  merlin.init();
+  merlin.setRatio(axis+1, 3);
+  merlin.setSpeed(axis+1, merlin_man_spd[axis]);
+  merlin_set_dir(axis,dir);
+  merlin_run(axis);
 }
 
 
@@ -95,7 +113,9 @@ void merlin_set_dir(byte axis, byte dir) {
  
   merlin_wasdir[axis] = merlin_dir[axis];
   merlin_dir[axis]    = dir;
-  merlin.setDirection(axis+1,dir);
+  // AC:20120115: melrin library will call setDirection internally
+  // inside startMoving or moveAngle
+  // merlin.setDirection(axis+1,dir);
   
 }
   

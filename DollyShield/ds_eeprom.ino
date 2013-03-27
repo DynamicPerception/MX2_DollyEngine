@@ -58,10 +58,10 @@
  min_spd[1]      = 49
  m_min_pulse[0]  = 50
  m_min_pulse[0]  = 51
- m_type[0]       = 52
- m_type[0]       = 53
- m_smsfx[0]      = 54
- m_smsfx[1]      = 55 
+ altio_dir       = 52
+                 = 53
+                 = 54
+                 = 55 
  ui_motor_display = 56
  motor_sl_mod    = 57
  lcd_dim_tm      = 58-59
@@ -94,6 +94,9 @@
  ext_trig_pre_dly = 252-255
  ext_trig_pst_dly = 256-259
  exp_tm         = 260-263
+ gb_enabled     = 264
+ ui_invdir      = 265
+ cur_bkl        = 266
  
 */
 
@@ -208,7 +211,6 @@ void eeprom_read( int pos, float& val ) {
 void write_all_eeprom_memory() {
 
     // write default values into eeprom
-  eeprom_write(260, exp_tm);
   eeprom_write(3, focus_tap_tm);
   eeprom_write(5, post_delay_tm);
   eeprom_write(7, focus_shutter);
@@ -226,10 +228,8 @@ void write_all_eeprom_memory() {
   eeprom_write(49, min_spd[1]);
   eeprom_write(50, m_min_pulse[0]);
   eeprom_write(51, m_min_pulse[1]);
-  eeprom_write(52, m_type[0]);
-  eeprom_write(53, m_type[1]);
-  eeprom_write(54, m_smsfx[0]);
-  eeprom_write(55, m_smsfx[1]);
+  eeprom_write(52, altio_dir);
+
   eeprom_write(56, ui_motor_display);
   eeprom_write(57, motor_sl_mod);
   eeprom_write(58, lcd_dim_tm);
@@ -267,6 +267,10 @@ void write_all_eeprom_memory() {
 
   eeprom_write(252, ext_trig_pre_delay);
   eeprom_write(256, ext_trig_pst_delay);
+  eeprom_write(260, exp_tm);
+  eeprom_write(264, gb_enabled);
+  eeprom_write(265, ui_invdir);
+  eeprom_write(266, cur_bkl);
   
 }
 
@@ -277,7 +281,6 @@ void restore_eeprom_memory() {
 
     // read eeprom stored values back into RAM
     
-  eeprom_read(260, exp_tm); // moved from position 1
   eeprom_read(3, focus_tap_tm);
   eeprom_read(5, post_delay_tm);
   eeprom_read(7, focus_shutter);
@@ -295,10 +298,8 @@ void restore_eeprom_memory() {
   eeprom_read(49, min_spd[1]);
   eeprom_read(50, m_min_pulse[0]);
   eeprom_read(51, m_min_pulse[1]);
-  eeprom_read(52, m_type[0]);
-  eeprom_read(53, m_type[1]);
-  eeprom_read(54, m_smsfx[0]);
-  eeprom_read(55, m_smsfx[1]);
+  eeprom_read(52, altio_dir);
+  
   eeprom_read(56, ui_motor_display);
   eeprom_read(57, motor_sl_mod);
   eeprom_read(58, lcd_dim_tm);
@@ -342,6 +343,12 @@ void restore_eeprom_memory() {
 
   eeprom_read(252, ext_trig_pre_delay);
   eeprom_read(256, ext_trig_pst_delay);
+
+  eeprom_read(260, exp_tm); // moved from position 1
+
+  eeprom_read(264, gb_enabled);
+  eeprom_read(265, ui_invdir);
+  eeprom_read(266, cur_bkl);
   
     // handle restoring alt input states
     
@@ -351,6 +358,9 @@ void restore_eeprom_memory() {
   if( input_type[1] != 0 )
     altio_connect(1,input_type[1]);
     
+  // set lcd backlight to saved value
+  ui_set_backlight(cur_bkl);
+  
 }
 
 

@@ -28,6 +28,8 @@
   
 */
 
+
+
 void altio_isr_handler(byte which) {
   
     // from internals
@@ -38,23 +40,34 @@ void altio_isr_handler(byte which) {
     input_trig_last = timer0_millis;
     
     switch( input_type[which] ) {
+      
       case 1:
         start_executing();
         break;
+        
       case 2:
         stop_executing();
         break;
+        
       case 3:
         altio_flip_runstat();
         break;
+        
       case 4: 
           // set camera ok to fire
         external_interval |= B00100000;
         break;
+        
+      case 8:
+          // switch all motor directions!
+        motor_dir(0, !m_wasdir[0]);
+        motor_dir(1, !m_wasdir[1]);
+        break;
+        
       default:
         break;
-    }
-  }
+    } // end switch
+  } //end if timer0...
 }
 
       
@@ -72,7 +85,7 @@ void altio_connect(byte which, byte type) {
   
   input_type[which] = type;
 
-    // type == 5 changes from input to output, handle this
+    // type == 5, 6, 7 changes from input to output, handle this
     // deviation
     
   if( type == 5 || type == 6 || type == 7 ) {
@@ -119,10 +132,10 @@ void altio_connect(byte which, byte type) {
   digitalWrite(2+which, HIGH);
   
   if( which ) {
-    attachInterrupt(1, altio_isr_two, FALLING);
+    attachInterrupt(1, altio_isr_two, altio_dir);
   }
   else {
-    attachInterrupt(0, altio_isr_one, FALLING);
+    attachInterrupt(0, altio_isr_one, altio_dir);
   }
   
 }    

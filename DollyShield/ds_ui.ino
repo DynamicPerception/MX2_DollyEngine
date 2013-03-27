@@ -47,7 +47,7 @@ void init_user_interface() {
  
    // banner
    
- lcd.print("(c) 2011 Dynamic");
+ lcd.print("(c) 2012 Dynamic");
  
  lcd.setCursor(5,1);
  lcd.print("Perception");
@@ -58,8 +58,8 @@ void init_user_interface() {
 
  lcd.setCursor(0,0); 
  lcd.print("MX2 Dolly Engine");
- lcd.setCursor(4,1);
- lcd.print("Version 0.90");
+ lcd.setCursor(3,1);
+ lcd.print("Version 0.92");
  
    // setup button input
 
@@ -265,20 +265,10 @@ byte get_menu( byte mnu, byte pos ) {
 
   switch(mnu) {
     case 0:
-      switch(pos) {
-        case 0:
-          return(1);
-        case 1:
-          return(2);
-        case 2:
-          return(3);
-        case 3:
-          return(4);
-        case 4:
-          return(5);
-        case 5:
-          return(6);
-      }
+    
+      if( pos <= 5 )
+        return( pos + 1 );
+
       break;
     
     case 1:
@@ -495,9 +485,8 @@ void ui_button_down( boolean held ) {
             merlin_set_speed(1, merlin_speeds[1]);
           }
           else {
-            merlin.setSpeed(2, merlin_man_spd[1]);
-            merlin_set_dir(1,1);            
-            merlin_run(1);
+            // AC:20120114: moved toe code to merlin_move_manual() to save a few bytes
+            merlin_move_manual(1,1);
           }
 
         show_merlin();
@@ -569,9 +558,8 @@ void ui_button_up( boolean held ) {
             merlin_set_speed(1, merlin_speeds[1]);
           }
           else {
-            merlin.setSpeed(2, merlin_man_spd[1]);
-            merlin_set_dir(1,0);            
-            merlin_run(1);
+            // AC:20120114: changed to merlin_move_manual()
+            merlin_move_manual(1,0);
           }
 
         show_merlin();
@@ -643,9 +631,8 @@ void ui_button_rt( boolean held ) {
             merlin_set_speed(0, merlin_speeds[0]);
           }
          else {
-            merlin.setSpeed(1, merlin_man_spd[0]);
-            merlin_set_dir(0,0);            
-            merlin_run(0);
+             // AC:20120114: changed to merlin_move_manual()
+             merlin_move_manual(0,0);
          }
           
         //show_merlin();
@@ -727,9 +714,8 @@ void ui_button_lt(boolean held) {
             merlin_set_speed(0, merlin_speeds[0]);
           }
           else {
-            merlin.setSpeed(1, merlin_man_spd[0]);
-            merlin_set_dir(0,1);            
-            merlin_run(0);
+            // AC:20120114: changed to merlin_move_manual()              
+            merlin_move_manual(0,1);  
           }
 
       }
@@ -936,8 +922,11 @@ void draw_values(const char *these[], boolean draw_all, boolean value_only) {
         else if( cur_inp_long == 6 ){
           lcd.print("Out After");
         }
-        else {
+        else if(cur_inp_long == 7 ) {
           lcd.print("Out Both");
+        }
+        else {
+          lcd.print("Change Dir");
         }
         return;
       }
@@ -1038,6 +1027,22 @@ void draw_values(const char *these[], boolean draw_all, boolean value_only) {
 }
 
 
+void ui_set_backlight(byte value) {
+
+    // make sure to not use pwm on lcd bkl pin
+    // if timer1 has been used at some point
+  if( ! timer_used ) {
+    analogWrite(LCD_BKL, cur_bkl);
+  }
+  else {
+    if( cur_bkl > 0 ) {
+      digitalWrite(LCD_BKL, HIGH);
+    }
+    else {
+      digitalWrite(LCD_BKL, LOW);
+    }
+  }
+}
 
 /* 
 

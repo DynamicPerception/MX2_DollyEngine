@@ -1,0 +1,54 @@
+#######################################
+# Syntax Coloring MerlinMount
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+parsePosVal	KEYWORD2
+valToHexStr	KEYWORD2
+toAngle	KEYWORD2
+fromAngle	KEYWORD2
+init	KEYWORD2
+startMoving	KEYWORD2
+stopMoving	KEYWORD2
+driveToPosition	KEYWORD2
+driveToPositionBothAxis	KEYWORD2
+takePicture	KEYWORD2
+readAxisPosition	KEYWORD2
+readAxisStatus	KEYWORD2
+sendCommand	KEYWORD2
+setRatio KEYWORD2
+getSteps KEYWORD2
+getSidereal KEYWORD2
+moveAngle KEYWORD2
+runMotor KEYWORD2
+#######################################
+# Instances (KEYWORD2)
+#######################################
+
+merlin	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+INIT_SUCCESS	KEYWORD2
+INIT_FAILED	KEYWORD2
+AXIS_YAW	KEYWORD2
+AXIS_PITCH	KEYWORD2
+DIR_UP	KEYWORD2
+DIR_DOWN	KEYWORD2
+DIR_RIGHT	KEYWORD2
+DIR_LEFT	KEYWORD2
+DIR_STOPPED	KEYWORD2
+STATUS_STOPPED	KEYWORD2
+STATUS_RUNNING	KEYWORD2
+MOUNT_RX_PIN	KEYWORD2
+MOUNT_TX_PIN	KEYWORD2
+SYNC_ASYNCHRONY	KEYWORD2
+SYNC_SYNCHRONY	KEYWORD2
+

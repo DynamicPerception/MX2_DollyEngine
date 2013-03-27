@@ -123,7 +123,7 @@ void move_val(boolean dir) {
     }
     else if( ui_type_flags2 & B10000000 ) {
           // ceiling for alt i/o types
-        cur_inp_long = cur_inp_long > 7 ? 7 : cur_inp_long;
+        cur_inp_long = cur_inp_long > 8 ? 8 : cur_inp_long;
     }
 
   } // end else long type...
@@ -145,8 +145,7 @@ void get_m_axis_set( byte pos, boolean read_save, byte motor ) {
           // set ramp value
         if( read_save == true ) {
           motor_set_ramp(motor, cur_inp_long);         
-          eeprom_write(61, m_ramp_set[0]);
-          eeprom_write(62, m_ramp_set[1]);
+          eeprom_write(61 + motor, m_ramp_set[motor]);
         }
 
         cur_inp_long = m_ramp_set[motor];
@@ -156,8 +155,7 @@ void get_m_axis_set( byte pos, boolean read_save, byte motor ) {
           // set lead-in value
         if( read_save == true ) {
           m_lead_in[motor] = cur_inp_long;
-          eeprom_write(229, m_lead_in[0]);
-          eeprom_write(231, m_lead_in[1]);
+          eeprom_write(229 + (motor*2), m_lead_in[motor]);
         }
 
         cur_inp_long = m_lead_in[motor];
@@ -167,8 +165,7 @@ void get_m_axis_set( byte pos, boolean read_save, byte motor ) {
           // set lead-out value
         if( read_save == true ) {
           m_lead_out[motor] = cur_inp_long;
-          eeprom_write(233, m_lead_out[0]);
-          eeprom_write(235, m_lead_out[1]);
+          eeprom_write(233 + (motor*2), m_lead_out[motor]);
         }
 
         cur_inp_long = m_lead_out[motor];
@@ -180,47 +177,33 @@ void get_m_axis_set( byte pos, boolean read_save, byte motor ) {
         if( read_save == true ) {
           m_rpm[motor] = cur_inp_float;
           motor_update_dist(motor, m_rpm[motor], m_diarev[motor]);
-          eeprom_write(32, m_rpm[0]);
-          eeprom_write(36, m_rpm[1]);
+          eeprom_write(32 + (motor*4), m_rpm[motor]);
         }
         
         cur_inp_float = m_rpm[motor];
         break;
 
-      case 4:
-          // fixed sms?
-        ui_type_flags |= B01000000;
-        
-        if( read_save == true ) { 
-          m_smsfx[motor] = cur_inp_bool;
-          eeprom_write(54, m_smsfx[0]);
-          eeprom_write(55, m_smsfx[1]);
-        }
-          
-        cur_inp_bool = m_smsfx[motor] ;
-        break;
 
-      case 5: 
+      case 4: 
       
           // doly angle (for calibration)
         ui_type_flags |= B00000001;
         
         if( read_save == true ) {
           m_angle[motor] = cur_inp_long;
-          eeprom_write(215, m_angle[0]);
-          eeprom_write(216, m_angle[1]);
+          eeprom_write(215 + motor, m_angle[motor]);
         }
         
         cur_inp_long = m_angle[motor];
         break;
 
         
-      case 6:
+      case 5:
           // calibrate motor
           get_calibrate_select(motor);
           break;
        
-      case 7:
+      case 6:
           // calibration constant
                 
         ui_type_flags |= B10000000;
@@ -233,57 +216,48 @@ void get_m_axis_set( byte pos, boolean read_save, byte motor ) {
         cur_inp_float = m_cal_constant[motor];
         break;
         
-      case 8:
+      case 7:
           // min ipm setting
         ui_type_flags |= B10000000;
         if( read_save == true ) {
             
           min_ipm[motor] = cur_inp_float;
           min_spd[motor] = 255 * ( min_ipm[motor] / max_ipm[motor] );
-          eeprom_write(40, min_ipm[0]);
-          eeprom_write(44, min_ipm[1]);
-          eeprom_write(48, min_spd[0]);
-          eeprom_write(49, min_spd[1]);
+          eeprom_write(40 + (motor*4), min_ipm[motor]);
+          eeprom_write(48 + motor, min_spd[motor]);
         } 
         cur_inp_float = min_ipm[motor];
 
         break;
         
-      case 9:
+      case 8:
           // distance per revolution
         ui_type_flags |= B10000000;
  
         if( read_save == true ) {
           m_diarev[motor] = cur_inp_float;
           motor_update_dist(motor, m_rpm[motor], m_diarev[motor]);
-          eeprom_write(16, m_diarev[0]);
-          eeprom_write(20, m_diarev[1]);  
+          eeprom_write(16 + (motor*4), m_diarev[motor]);
         }
         
         cur_inp_float = m_diarev[motor];
 
         break;
 
-      case 10:
+      case 9:
           // motor min pulse
         if( read_save == true ) {
-          m_min_pulse[motor] = cur_inp_long;
-          eeprom_write(50, m_min_pulse[0]);
-          eeprom_write(51, m_min_pulse[1]);
+          
+          if(cur_inp_long > 255)
+            cur_inp_long = 255;
+            
+          m_min_pulse[motor] = cur_inp_long;          
+          eeprom_write(50 + motor, m_min_pulse[motor]);
         }
         cur_inp_long = m_min_pulse[motor];
         break;
         
-      case 11:
-          // axis type
-        ui_type_flags |= B00000010;
-        if( read_save == true ) {
-          m_type[motor] = cur_inp_bool;
-          eeprom_write(52, m_type[0]);
-          eeprom_write(53, m_type[1]);
-        }
-        cur_inp_bool = m_type[motor];
-        break;
+
     }
     
 }
@@ -380,11 +354,11 @@ void get_scope_set(byte pos, boolean read_save) {
   switch(pos) {
     case 0:
       ui_type_flags |= B10000000;
-      ui_float_tenths = true;
+      ui_float_tenths = false;
       
       if( read_save == true ) {
         merlin_man_spd[0] = cur_inp_float;
-        merlin_man_spd[0] = merlin_man_spd[0] > 1440.0 ? 1440.0 : merlin_man_spd[0];
+        merlin_man_spd[0] = merlin_man_spd[0] > 350.0 ? 350.0 : merlin_man_spd[0];
         eeprom_write(221, merlin_man_spd[0]);
       }
       
@@ -392,11 +366,11 @@ void get_scope_set(byte pos, boolean read_save) {
       break;
    case 1:
       ui_type_flags |= B10000000;
-      ui_float_tenths = true;
+      ui_float_tenths = false;
       
       if( read_save == true ) {
         merlin_man_spd[1] = cur_inp_float;
-        merlin_man_spd[1] = merlin_man_spd[1] > 1440.0 ? 1440.0 : merlin_man_spd[1];
+        merlin_man_spd[1] = merlin_man_spd[1] > 350.0 ? 350.0 : merlin_man_spd[1];
         eeprom_write(225, merlin_man_spd[1]);
       }
       
@@ -443,19 +417,8 @@ void get_global_set(byte pos, boolean read_save) {
         // backlight level    
       if(read_save == true) {
         cur_bkl = cur_inp_long > 255 ? 255 : cur_inp_long;
-          // make sure to not use pwm on lcd bkl pin
-          // if timer1 has been used at some point
-        if( ! timer_used ) {
-          analogWrite(LCD_BKL, cur_bkl);
-        }
-        else {
-          if( cur_bkl > 0 ) {
-            digitalWrite(LCD_BKL, HIGH);
-          }
-          else {
-            digitalWrite(LCD_BKL, LOW);
-          }
-        }
+        ui_set_backlight(cur_bkl);
+        eeprom_write(266, cur_bkl);
       }
       
       cur_inp_long = cur_bkl;
@@ -627,6 +590,43 @@ void get_global_set(byte pos, boolean read_save) {
     cur_inp_long = ext_trig_pst_delay;
     break;
      
+   case 14:
+     // GB enable
+      ui_type_flags |= B01000000;
+      
+      if( read_save == true ) {
+        gb_enabled = cur_inp_bool;
+        eeprom_write(264, gb_enabled);
+      }
+      
+      cur_inp_bool = gb_enabled;
+      break;
+
+   case 15:
+     // invert dir display
+      ui_type_flags |= B01000000;
+      
+      if( read_save == true ) {
+        ui_invdir = cur_inp_bool;
+        eeprom_write(265, ui_invdir);
+      }
+      
+      cur_inp_bool = ui_invdir;
+      break;
+      
+   case 16:
+     // flip I/O trigger type
+     
+     ui_type_flags |= B01000000;
+     
+     if( read_save == true ) {
+       altio_dir = (cur_inp_bool == false) ? FALLING : RISING;
+       eeprom_write(52, altio_dir);
+     }
+     
+     cur_inp_bool = (altio_dir == FALLING) ? false : true;
+     break;
+     
   }
   
   
@@ -743,8 +743,9 @@ void get_mainscr_set(byte pos, boolean read_save) {
         
       lcd.setCursor(9,1);
       
-      if( m_smsfx[1] == true ) {
-          // fixed shoot-move-shoot?
+     if( ! motor_sl_mod ) {
+          // shoot-move-shoot?
+          
         cur_inp_long = cur_inp_long > m_maxsms[1] ? m_maxsms[1] : cur_inp_long;
       } 
       else {        
@@ -814,7 +815,7 @@ void get_merlin_set(byte pos, boolean read_save) {
      // speed for yaw
        lcd.setCursor(1,1);
        ui_type_flags |= B10000000;
-       ui_float_tenths = true;
+       ui_float_tenths = false;
  
 
       
@@ -843,7 +844,7 @@ void get_merlin_set(byte pos, boolean read_save) {
      // speed for yaw
        lcd.setCursor(9,1);
        ui_type_flags |= B10000000;
-       ui_float_tenths = true;
+       ui_float_tenths = false;
  
 
         // degrees
@@ -872,8 +873,11 @@ void get_manual_select(byte pos) {
   if( pos == 2 ) {
     merlin_flags |= B00100000;
       // set merlin into high speed mode
-    merlin.setRatio(1, 3);
-    merlin.setRatio(2, 3);
+      // AC/20120113: removed 
+      // ratio is now set in merlin_move_manual()
+      
+   // merlin.setRatio(1, 3);
+   // merlin.setRatio(2, 3);
       // show merlin screen
     show_merlin();
     return;
@@ -924,13 +928,10 @@ void display_spd_pct(byte spd) {
   lcd.print('%');
 }
 
-void display_spd_deg(int spd, byte motor) {
-}
-
 
 void display_spd_merlin(unsigned int spd, byte motor) {
 
-  lcd.print(merlin_speeds[motor], 1);
+  lcd.print(merlin_speeds[motor], 2);
     
 }
 

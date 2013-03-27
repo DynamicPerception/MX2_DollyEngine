@@ -36,7 +36,7 @@ void prep_home_screen() {
 
   if( run_status & B10000000 ) {
       // in 'external intervalometer' mode, show 'ext' inseatd of 'on'
-    if( external_interval & B11000000 ) {
+    if( external_interval & B11000000 || gb_enabled == true ) {
       lcd.print("Ext");
     }
     else {
@@ -130,18 +130,19 @@ void show_home() {
  
   lcd.setCursor(0,1);
   
+      // dir displays
+  char lt = ui_invdir == true ? 'R' : 'L';
+  char rt = ui_invdir == true ? 'L' : 'R';
+
   if( m_wasdir[0] == 1 ) {
-    lcd.print('L');
+    lcd.print(lt);
   }
   else {
-    lcd.print('R');
+    lcd.print(rt);
   }
 
  
- if( m_type[0] == 1 ) {
-   display_spd_deg(m_speeds[0], 0);
- }
- else if( ui_motor_display ) {
+if( ui_motor_display ) {
   // display pct 
    display_spd_ipm(m_speeds[0], 0);
  }
@@ -154,16 +155,13 @@ void show_home() {
   
   
   if( m_wasdir[1] == 1 ) {
-    lcd.print('L');
+    lcd.print(lt);
   }
   else {
-    lcd.print('R');
+    lcd.print(rt);
   }
 
- if( m_type[1] == 1 ) {
-   display_spd_deg(m_speeds[0], 1);
- }
- else if( ui_motor_display ) {
+if( ui_motor_display ) {
   // display pct 
    display_spd_ipm(m_speeds[1], 1);
  }
@@ -309,9 +307,6 @@ void execute_calibrate() {
 
   }
 
-    // save this for now, to avoid calc problems
-  byte was_smsfx[2] = { m_smsfx[0], m_smsfx[1] };
-  m_smsfx[0] = 0; m_smsfx[1] = 0;
   
     // pulse calibration  
   for( byte c = 1; c <= 2; c++ ) {
@@ -345,8 +340,6 @@ void execute_calibrate() {
     }
   }
 
-    // restore values
-  m_smsfx[0] = was_smsfx[0]; m_smsfx[1] = was_smsfx[1];
   
   ui_cal_scrn_flags &= B01111111;
   ui_cal_scrn_flags |= B01000000;
