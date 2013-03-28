@@ -388,7 +388,8 @@ void ui_button_center( boolean held ) {
         // the next menu to go to
         
           // calibration, don't do anything else
-      if( (cur_menu == 2 || cur_menu == 3) && cur_pos == 6 ) {
+          // EJD:20130329: Corregido && cur_pos == 6 que no dejaba acceder a calibrar la constante 
+      if( (cur_menu == 2 || cur_menu == 3) && cur_pos == 5 ) {
         get_value(cur_menu, cur_pos, false);
         return;
       }
