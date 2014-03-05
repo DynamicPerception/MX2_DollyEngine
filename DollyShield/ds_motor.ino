@@ -26,25 +26,45 @@
   Motor control functions
   ========================================
   
+  motor_speed_adjust - adjust by val, check against limit
+    called only from ds_ui - motor speed setting for manual motion - this is the sole usage
+    calls motor_set_speed
+
+  motor_control - turn motor on or off
+    called from DollyShield - start/stop executing
+    called from ds_ui - motor on/off for manual motion
+    calls motor_set_speed to turn motor on/off
+  
+  motor_set_speed - set actualy motor speed, including stopping motor
+    called from ds_ui_values - main screen motor speed adjust
+
+  BUGS: 
+  - manual direction changes change non-manual direction
+  - manual/normal speeds cross set
+  - what is mcur_spds and why is it used? this code is broken
+  TODO:
+  - save m_speeds but not when ramping (separate var for current motor speed?)
+  
 */
 
+// #define debug
 
-void motor_speed_adjust( byte motor, int val, boolean spd_floor ) {
 
-   byte c_speed = 0;
-    // val is expected to be between -255 and 255;
+void motor_speed_adjust( byte motor, int val, boolean spd_floor ) { // manual control motor speed
 
-   if( (int) m_speeds[motor] + val >= 255 ) {
+   int c_speed = (int) m_speeds[m_mode][motor] + val;  // new speed, possibly <0
+    // val is expected to be between -255 and 255  //wbp: 0 and 255 ???
+
+   if( c_speed >= 255 ) {  
     c_speed = 255;
    }
    else {
-     c_speed = (int) m_speeds[motor] + val >= 0 ? m_speeds[motor] + val : 0;
+     c_speed = c_speed >= 0 ? c_speed : 0;
        // do we need to floor the value at the min speed setting? (man control)
      if( spd_floor ) 
-       c_speed = c_speed < min_spd[motor] ? min_spd[motor] : c_speed;
+       c_speed = c_speed < EE.min_spd[motor] ? EE.min_spd[motor] : c_speed;
    }
-
-   motor_set_speed( motor, c_speed );   
+   motor_set_speed( motor, c_speed );
    
 }
 
@@ -54,82 +74,67 @@ void motor_control(byte motor, boolean state) {
  
   if( ! state ) {
       // set motors as not running
-
-    unsigned int ths_spd = m_speeds[motor];
-           
-    motor_set_speed( motor, 0 );
- 
-    m_speeds[motor] = ths_spd;
-    mcur_spds[motor] = ths_spd;
-
-    run_status &= B11101111;
-    
+    unsigned int ths_spd = m_speeds[m_mode][motor];
+    motor_set_speed( motor, 0 ); // stop motor
+    m_speeds[m_mode][motor] = ths_spd; // restore original motor speed after motor_set_speed
+    run_status &= (255-RS_Motors_Running); // motors are stopped
   }
   else {
       // set motors as running...
-    run_status |= B00010000;
-    if( mcur_spds[motor] > 0 )
-      motor_set_speed(motor, mcur_spds[motor]);
+    run_status |= RS_Motors_Running; // motors are (will be) running
+    motor_set_speed(motor, m_speeds[m_mode][motor]);
   }
 }
 
 
 
 void motor_set_speed( byte motor, unsigned int m_speed ) {
-
   
   if( motor >= MAX_MOTORS )
     return;
     
-  m_speeds[motor] = m_speed;
+  m_speeds[m_mode][motor] = m_speed;
   m_sms_tm[motor] = 0;
-  
-        
 
-  if( ! motor_sl_mod && ! (ui_ctrl_flags & B00000100) ) {
-
-      // handle when in interleaved mode and not on
-      // manual control screen
+  if( EE.motor_mode || (ui_ctrl_flags & (UC_Manual+UC_Park)) ) {
       
-    float m_pct = ( (float) m_speed / (float) m_maxsms[motor] );  
+      // continuous, manual, or park
+      // normalize to max pwm speed
+    if (m_speed > 255) {
+      m_speed = 255;
+      m_speeds[m_mode][motor] = m_speed;
+    }
+  
+  }
+  else {
+
+      // interleave mode and not manual control and not parking
+    
+    float m_pct = ( (float) m_speed / (float) EE.m_maxsms[motor] );  
 
     m_sms_tm[motor] = 60000.0 * m_pct;
     
     // calibrate
-    m_sms_tm[motor] *= motor_cal_adjust(0,motor,0,m_wasdir[motor]);
+    m_sms_tm[motor] *= motor_cal_adjust(0,motor,0,EE.m_dirs[m_mode][motor]);
 
-  }
-  else {
-    
-      // normalize to max pwm speed
-    m_speed = m_speed > 255 ? 255 : m_speed;
-      
-    m_speeds[motor] = m_speed;
   }
   
-
     // do we need to go into pulsing mode?
-    
-  if( m_speed > 0 && m_speed < min_spd[motor]  ) {
-      
+  if( m_speed > 0 && m_speed < EE.min_spd[motor]  ) {
     motor_calc_pulse_len(motor, m_speed, false);
-    
   } //      
   else {
     on_pct[motor] = 0;
   }
   
-  
-
   byte motor_pin = motor >= 1 ? MOTOR1_P : MOTOR0_P;
   
-  if( ! (run_status & B00010000)  ) {
-    // if disabled, do not move motor, but
-    // instead adjust stored speed
-    mcur_spds[motor] = m_speed;
+  if( ! (run_status & RS_Motors_Running)  ) {
+    // if stopped, do not move motor, just set speed & return
+//    m_speeds[m_mode][motor] = m_speed;  //wbp: already done
     return;
   }
-  else if( ! (ui_ctrl_flags & B00000100) && m_sms_tm[motor] > 0 ) {
+  else if( ! (ui_ctrl_flags & (UC_Manual+UC_Park)) && m_sms_tm[motor] > 0 ) {
       // just in case
     digitalWrite(motor_pin, LOW);
       // return if we're in an SMS condition
@@ -142,13 +147,15 @@ void motor_set_speed( byte motor, unsigned int m_speed ) {
 
     // only set analog speed if it exceeds min speed
 
-  if( m_speed >= min_spd[motor] ) {
+  if( m_speed >= EE.min_spd[motor] ) {
     analogWrite(motor_pin, m_speed);
+    m_state[motor] = 1; // motor is moving
   }
   else {
     // just in case... switching down from 
     // pwm to pulsed...
     digitalWrite(motor_pin,LOW);
+    m_state[motor] = 0; // motor is stopped
   }
   
 }
@@ -163,33 +170,46 @@ void motor_calc_pulse_len(byte motor, unsigned int m_speed, boolean ignore_cal) 
     on_pct[motor] = periods * m_pct; 
     off_pct[motor] = (float) (periods - on_pct[motor]);
       
-    float cal_amt = motor_cal_adjust(1,motor,m_speed, m_wasdir[motor]);
+    float cal_amt = motor_cal_adjust(1,motor,m_speed, EE.m_dirs[m_mode][motor]);
     
       // calibrate, if desired
     if( ! ignore_cal && cal_amt != 1.0 )
-      off_pct[motor] = ( (double) off_pct[motor] * ( cal_amt * m_cal_constant[motor] )  ); 
+      off_pct[motor] = ( (double) off_pct[motor] * ( cal_amt * EECal.m_cal_constant[motor] )  ); 
         
     if(on_pct[motor] < 1)
       on_pct[motor] = 1;
 
     // make sure that we're on for a minimum amount of time
     
-   if ( on_pct[motor] != 0 && on_pct[motor] < m_min_pulse[motor] ) {
+   if ( on_pct[motor] != 0 && on_pct[motor] < EE.m_min_pulse[motor] ) {
        // adjust so that off time is increased relative to on time
-     float diff = (float) m_min_pulse[motor] / (float) on_pct[motor];       
+     float diff = (float) EE.m_min_pulse[motor] / (float) on_pct[motor];       
      off_pct[motor] = ((float) off_pct[motor] * diff);
-     on_pct[motor] = m_min_pulse[motor];
+     on_pct[motor] = EE.m_min_pulse[motor];
    }
  
 }
 
 void motor_dir( byte motor, byte dir ) {
   
-  if( m_wasdir[motor] == dir )
-    return;
- 
+  byte m_dir = EE.m_dirs[m_mode][motor]; // current saved direction for this motor
+  if( m_dir != dir ) { // is it changing?
+    EE.m_dirs[m_mode][motor] = dir; // remember new direction
+    ee_save(); // save it
+//    return;  // no change in direction needed - except it might never have been set...
+  }
+
+  if (EE.ui_invdir) // if invert dir on
+    dir = !dir; // flip direction 
+
    // get current speed for the motor
-  byte ths_speed = m_speeds[motor];
+  unsigned int m_speed = m_speeds[m_mode][motor];
+//    if( m_speed > 0 ) { // shouldn't this be checking something else????????????????
+    if( run_status & RS_Motors_Running) {
+        // motor was already moving, need to stop it first
+      motor_set_speed( motor, 0 );
+      delay(200);  // give motor a little time to stop
+    }
     
     // find direction pin
   byte m_dirp = motor >= 1 ? MOTOR1_DIR : MOTOR0_DIR;
@@ -199,18 +219,10 @@ void motor_dir( byte motor, byte dir ) {
     
   byte m_dirc = motor >= 1 ? !dir : dir;
   
-  if( ths_speed > 0 ) {
-      // motor was already moving, need to stop
-      // and let motor settle before moving
-      // stop motor
-    motor_set_speed( motor, 0 );
-    delay(100);    
-  }
-
+  digitalWrite(m_dirp, m_dirc);  // change the pin
   
-  digitalWrite(m_dirp, m_dirc);  
-  m_wasdir[motor] = dir;
-  motor_set_speed( motor, ths_speed );
+  if( run_status & RS_Motors_Running)
+    motor_set_speed( motor, m_speed );
 }
   
 
@@ -220,13 +232,13 @@ float motor_calc_ipm(byte motor, unsigned int spd, boolean ths_mode) {
     // get max speed for either pulse or sms mode
     // on calibration screen, always ch
 
-  float maxspd = ( ! ths_mode ) ? (float) m_maxsms[motor] : 255.0;
+  float maxspd = ( ! ths_mode ) ? (float) EE.m_maxsms[motor] : 255.0;
   
     // in manual mode, we're always in 0-255 mode
-  if( ui_ctrl_flags & B00000100 ) 
+  if( ui_ctrl_flags & (UC_Manual+UC_Park) ) 
     maxspd = 255.0;
     
-  float cur_ipm = (float) max_ipm[motor] * ( (float) spd / (float) maxspd );      
+  float cur_ipm = (float) EE.max_ipm[motor] * ( (float) spd / (float) maxspd );      
   
   return(cur_ipm);
 }
@@ -235,16 +247,11 @@ float motor_calc_ipm(byte motor, unsigned int spd, boolean ths_mode) {
 void motor_update_dist(byte motor, float rpm, float diarev ) {
     // set distance settings when rpm or diarev change
     
-  max_ipm[motor] = rpm * diarev;
-  min_spd[motor] = 255 * ( min_ipm[motor] / max_ipm[motor] );
-  m_maxsms[motor] = max_ipm[motor] * 100;
+  EE.max_ipm[motor] = rpm * diarev;
+  EE.min_spd[motor] = 255 * ( EE.min_ipm[motor] / EE.max_ipm[motor] );
+  EE.m_maxsms[motor] = EE.max_ipm[motor] * 100;
   
-  eeprom_write(24, max_ipm[0]);
-  eeprom_write(28, max_ipm[1]);
-  eeprom_write(48, min_spd[0]);
-  eeprom_write(49, min_spd[1]);
-  eeprom_write(63, m_maxsms[0]);
-  eeprom_write(65, m_maxsms[1]);
+	ee_save();
 
 }
 
@@ -278,6 +285,7 @@ void motor_pulse() {
             PORTD |= (B00100000 << i);  
             //analogWrite(5, 165);
             mstate[i] = 1;
+            m_state[i] = 1; // wbp
             pulses[i] = 1;
           }
         }
@@ -292,6 +300,7 @@ void motor_pulse() {
             //analogWrite(5, 0);
             PORTD &= ( B11111111 ^ ( B00100000 << i ) ); 
             mstate[i] = 0;
+            m_state[i] = 0; // wbp
             pulses[i] = 1;
           }
         } // end else not mstate...
@@ -308,11 +317,15 @@ void run_motor_sms(byte motor) {
    return;
  }
 
-  cur_motor = motor;
-  motor = motor >= 1 ? MOTOR1_P : motor;
-  motor = motor == 0 ? MOTOR0_P : motor;
+  cur_motor = motor;  // save for stop_motor_sms
+//  motor = motor >= 1 ? MOTOR1_P : motor;
+//  motor = motor == 0 ? MOTOR0_P : motor;
+  byte mpin = MOTOR0_P;
+  if (motor > 0)
+    mpin = MOTOR1_P;
  
- analogWrite(motor, 255);
+ analogWrite(mpin, 255);
+ m_state[motor] = 1; // wbp motor is running
 
 } 
 
@@ -320,14 +333,16 @@ void stop_motor_sms() {
 
  MsTimer2::stop();
   
-  byte motor = cur_motor;
-  
-  motor = motor >= 1 ? MOTOR1_P : motor;
-  motor = motor == 0 ? MOTOR0_P : motor;
+//  motor = motor >= 1 ? MOTOR1_P : motor;
+//  motor = motor == 0 ? MOTOR0_P : motor;
+  byte mpin = MOTOR0_P;
+  if (cur_motor > 0)
+    mpin = MOTOR1_P;
  
- analogWrite(motor, 0);
+ analogWrite(mpin, 0);
 
  motor_ran++;
+ m_state[cur_motor] = 0; // wbp motor is stopped
  
 } 
 
@@ -339,18 +354,18 @@ void motor_set_ramp(byte motor, byte ramp) {
    if( motor > MAX_MOTORS )
      return;
    
-   m_ramp_set[motor]   = ramp > 255 ? 255 : ramp;
+   EE.m_ramp_set[motor]   = ramp > 255 ? 255 : ramp;
    
     // calculate speed change per shot  
    if( ramp > 0 ) {
-     m_ramp_shift[motor] = (float) m_speeds[motor] / ramp;
+     m_ramp_shift[motor] = (float) m_speeds[m_mode][motor] / ramp;
      
        // if there's less than one step per jump,
        // we need to skip shots between increases
        // so determine how many shots to skip
       
      if( m_ramp_shift[motor] < 1 ) {
-       m_ramp_mod[motor] = ramp / m_speeds[motor];
+       m_ramp_mod[motor] = ramp / m_speeds[m_mode][motor];
        m_ramp_mod[motor] = m_ramp_mod[motor] < 2 ? 2 : m_ramp_mod[motor];
        m_ramp_shift[motor] = 1.0;
      }
@@ -382,8 +397,7 @@ void motor_stop_all() {
   
   motor_control(0, false);
   motor_control(1, false);
-  
-  
+
 
 }
 
@@ -396,41 +410,40 @@ float motor_cal_adjust(byte type, byte motor, byte m_spd, byte dir) {
   
       // simplistic for sms mode
   if( type == 0 ) 
-    return(m_cal_array[motor][m_angle[motor]][0][dir]);
+    return(EECal.m_cal_array[motor][EE.m_angle[motor]][0][dir]);
     
-    // determine which calibration position we fall
-    // into
+    // determine which calibration position we fall into
     
   byte pos = 0;
   
     // if between two cal points, get position between them
-  byte cal_diff = motor_spd_cal[1] - motor_spd_cal[0];
-  byte hi_diff  = 255 - motor_spd_cal[1];
+  byte cal_diff = EECal.m_cal_speed[1] - EECal.m_cal_speed[0];
+  byte hi_diff  = 255 - EECal.m_cal_speed[1];
   
-  if ( m_spd > motor_spd_cal[0] && m_spd < motor_spd_cal[1] ) {
-    unsigned int diff = m_spd - motor_spd_cal[0];
+  if ( m_spd > EECal.m_cal_speed[0] && m_spd < EECal.m_cal_speed[1] ) {
+    unsigned int diff = m_spd - EECal.m_cal_speed[0];
     float diff_pct = (float) diff / (float) cal_diff;
-    float ret = ( m_cal_array[motor][m_angle[motor]][2][dir] * diff_pct ) + ( m_cal_array[motor][m_angle[motor]][1][dir] * ( 1.0 - diff_pct ) );
+    float ret = ( EECal.m_cal_array[motor][EE.m_angle[motor]][2][dir] * diff_pct ) + ( EECal.m_cal_array[motor][EE.m_angle[motor]][1][dir] * ( 1.0 - diff_pct ) );
     return(ret);
   }
-  else if( m_spd > motor_spd_cal[1] ) {
+  else if( m_spd > EECal.m_cal_speed[1] ) {
       // between last cal point and max speed
-    unsigned int diff = m_spd - motor_spd_cal[1];
+    unsigned int diff = m_spd - EECal.m_cal_speed[1];
     float diff_pct = (float) diff / (float) hi_diff;
-    float ret = m_cal_array[motor][m_angle[motor]][2][dir] - (m_cal_array[motor][m_angle[motor]][2][dir] * diff_pct);
+    float ret = EECal.m_cal_array[motor][EE.m_angle[motor]][2][dir] - (EECal.m_cal_array[motor][EE.m_angle[motor]][2][dir] * diff_pct);
     return(ret);
   }
-  else if( m_spd <= motor_spd_cal[0] ) {
+  else if( m_spd <= EECal.m_cal_speed[0] ) {
     pos = 1;
   }
-  else if( m_spd == motor_spd_cal[1] ) {
+  else if( m_spd == EECal.m_cal_speed[1] ) {
     pos = 2;
   }
   else {
     return(1.0);
   }
   
-  return(m_cal_array[motor][m_angle[motor]][pos][dir]);
+  return(EECal.m_cal_array[motor][EE.m_angle[motor]][pos][dir]);
 }
   
 
@@ -442,7 +455,7 @@ void motor_run_pulsing() {
 
     // we use timer1, which disables pwm on
     // lcd bkl pin
-    if( cur_bkl > 0 ) {
+    if( EE.cur_bkl > 0 ) {
       digitalWrite(LCD_BKL, HIGH);
     }
     else {
@@ -467,33 +480,33 @@ void motor_execute_ramp_changes() {
 
   for(byte m = 0; m < MAX_MOTORS; m++) {
       // no ramp, go to next motor
-    if( m_ramp_set[m] == 0 )
+    if( EE.m_ramp_set[m] == 0 )
       continue;
     
       // handle lead-in
-    if( shots <= m_lead_in[m] ) {
+    if( shots <= EE.m_lead_in[m] ) {
       motor_set_speed(m, 0); 
       continue;  
     }
       
       // ramp up?
-    if( m_ramp_set[m] >= ( shots - m_lead_in[m]) ) {
+    if( EE.m_ramp_set[m] >= ( shots - EE.m_lead_in[m]) ) {
         // if ramping less than once per shot 
-      if( m_ramp_mod[m] > 0 && ( shots - m_lead_in[m] ) % m_ramp_mod[m] == 0 ) {
-        motor_set_speed(m, m_speeds[m] + 1);
+      if( m_ramp_mod[m] > 0 && ( shots - EE.m_lead_in[m] ) % m_ramp_mod[m] == 0 ) {
+        motor_set_speed(m, m_speeds[m_mode][m] + 1);
       }
       else if( m_ramp_mod[m] == 0 ) {  
-        motor_set_speed(m, (m_ramp_shift[m] * (shots - m_lead_in[m]) ) );
+        motor_set_speed(m, (m_ramp_shift[m] * (shots - EE.m_lead_in[m]) ) );
       }
     }
-    else if( (cam_max - shots - m_lead_out[m]) <= m_ramp_set[m] ) {
+    else if( (EE.cam_max - shots - EE.m_lead_out[m]) <= EE.m_ramp_set[m] ) {
         // ramping down, it seems
-      if( m_ramp_mod[m] > 0 && (cam_max - shots - m_lead_out[m]) % m_ramp_mod[m] == 0 ) {
-        byte m_spd = m_speeds[m] > 0 ? m_speeds[m] - 1 : 0;
+      if( m_ramp_mod[m] > 0 && (EE.cam_max - shots - EE.m_lead_out[m]) % m_ramp_mod[m] == 0 ) {
+        byte m_spd = m_speeds[m_mode][m] > 0 ? m_speeds[m_mode][m] - 1 : 0;
         motor_set_speed(m, m_spd);
       }
       else if( m_ramp_mod[m] == 0 ) {  
-        motor_set_speed(m, m_ramp_shift[m] * (cam_max - shots - m_lead_out[m]) );
+        motor_set_speed(m, m_ramp_shift[m] * (EE.cam_max - shots - EE.m_lead_out[m]) );
       }
     }
   }
@@ -504,11 +517,11 @@ void motor_execute_ramp_changes() {
 void motor_run_calibrate(byte which, unsigned int mspd, byte dir) {
   
 
-  byte cur_dir = m_wasdir[cur_motor];
+  byte cur_dir = EE.m_dirs[m_mode][cur_motor];
   motor_dir(cur_motor, dir);
   
   if( which == 1 ) {
-    float m_pct = ( (float) mspd / (float) m_maxsms[cur_motor] );  
+    float m_pct = ( (float) mspd / (float) EE.m_maxsms[cur_motor] );  
     unsigned int run_tm = 60000.0 * m_pct;
     
     motor_ran = 0;
@@ -550,8 +563,3 @@ void motor_run_calibrate(byte which, unsigned int mspd, byte dir) {
   
 }
 
-
-  
-  
-         
-  

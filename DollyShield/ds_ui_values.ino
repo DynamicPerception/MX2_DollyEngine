@@ -30,7 +30,7 @@
 */
 
 
-void get_value( byte menu, byte pos, boolean read_save ) {
+void get_value( byte menu, byte pos, boolean save ) {
 
     // find the correct value to display for the current menu item
     // calls the necessary related function to handle value display/setting
@@ -38,26 +38,32 @@ void get_value( byte menu, byte pos, boolean read_save ) {
     return;
     
     //set as non-floating point/bool by default
-  ui_type_flags = 0;
+  ui_type = 0;
   
   switch(menu) {
-    case 1:
+    case MU_MANUAL:
       get_manual_select(pos);
       break;
-    case 2:    
-      get_m_axis_set(pos, read_save, 0);
+    case MU_AXIS1:    
+      get_m_axis_set(pos, save, 0);
       break;
-    case 3:    
-      get_m_axis_set(pos, read_save, 1);
+    case MU_AXIS2:    
+      get_m_axis_set(pos, save, 1);
       break;
-   case 4:
-      get_m_cam_set(pos, read_save);
+   case MU_CAMERA:
+      get_m_cam_set(pos, save);
       break;
-   case 5:
-       get_global_set(pos, read_save);
+   case MU_PARK:
+      get_park_select(pos,save);
+      break;
+   case MU_RESET:
+      get_reset_set(pos, save);
+      break;
+   case MU_SETTINGS:
+       get_global_set(pos, save);
        break;
-   case 6:
-       get_scope_set(pos, read_save);
+   case MU_SCOPE:
+       get_scope_set(pos, save);
        break;
   }
   
@@ -70,7 +76,7 @@ void move_val(boolean dir) {
 
     // increase or decrease input value
 
-  if( ui_type_flags & B10000000 ) {
+  if( ui_type == UT_Float ) {
       // float type
 
     
@@ -95,7 +101,7 @@ void move_val(boolean dir) {
     }
 
   }
-  else if( ui_type_flags & B01111110 ) {
+  else if( ui_type > 0 && ui_type <= UT_Boolean ) {
       // any boolean type
 
     cur_inp_bool = ! cur_inp_bool;
@@ -117,84 +123,91 @@ void move_val(boolean dir) {
       }
     } // end if dir not true
     
-    if( ui_type_flags & B00000001 ) {
+    if( ui_type == UT_Angle ) {
             // ceiling on certain values
-        cur_inp_long = cur_inp_long > 2 ? 2 : cur_inp_long;
+       if (cur_inp_long > 2)
+        cur_inp_long = 2;
     }
-    else if( ui_type_flags2 & B10000000 ) {
+    else if( ui_type == UT_AltIO ) {
           // ceiling for alt i/o types
-        cur_inp_long = cur_inp_long > 8 ? 8 : cur_inp_long;
+       if (cur_inp_long > 8)
+        cur_inp_long = 8;
+    }
+    else if (ui_type == UT_Park) {
+       if (cur_inp_long > 1)
+         cur_inp_long = 1; 
+			 ui_ctrl_flags &= (255-UC_Value_Drawn); // value has changed
     }
 
   } // end else long type...
+	
   
 }
 
 
 
 
-void get_m_axis_set( byte pos, boolean read_save, byte motor ) {
+void get_m_axis_set( byte pos, boolean save, byte motor ) {
 
-    ui_type_flags = 0;
-    ui_type_flags2 = 0;
+    ui_type = 0;
     
       // set axis configurable values
       
     switch(pos) { 
       case 0:
           // set ramp value
-        if( read_save == true ) {
-          motor_set_ramp(motor, cur_inp_long);         
-          eeprom_write(61 + motor, m_ramp_set[motor]);
+        if( save == true ) {
+          motor_set_ramp(motor, cur_inp_long);
+          ee_save();
         }
 
-        cur_inp_long = m_ramp_set[motor];
+        cur_inp_long = EE.m_ramp_set[motor];
         break;
 
       case 1:
           // set lead-in value
-        if( read_save == true ) {
-          m_lead_in[motor] = cur_inp_long;
-          eeprom_write(229 + (motor*2), m_lead_in[motor]);
+        if( save == true ) {
+          EE.m_lead_in[motor] = cur_inp_long;
+          ee_save();
         }
 
-        cur_inp_long = m_lead_in[motor];
+        cur_inp_long = EE.m_lead_in[motor];
         break;
 
       case 2:
           // set lead-out value
-        if( read_save == true ) {
-          m_lead_out[motor] = cur_inp_long;
-          eeprom_write(233 + (motor*2), m_lead_out[motor]);
+        if( save == true ) {
+          EE.m_lead_out[motor] = cur_inp_long;
+          ee_save();
         }
 
-        cur_inp_long = m_lead_out[motor];
+        cur_inp_long = EE.m_lead_out[motor];
         break;
         
       case 3:
-        ui_type_flags |= B10000000;
+        ui_type = UT_Float;
           // set rpm
-        if( read_save == true ) {
-          m_rpm[motor] = cur_inp_float;
-          motor_update_dist(motor, m_rpm[motor], m_diarev[motor]);
-          eeprom_write(32 + (motor*4), m_rpm[motor]);
+        if( save == true ) {
+          EE.m_rpm[motor] = cur_inp_float;
+          motor_update_dist(motor, EE.m_rpm[motor], EE.m_diarev[motor]);
+          ee_save();
         }
         
-        cur_inp_float = m_rpm[motor];
+        cur_inp_float = EE.m_rpm[motor];
         break;
 
 
       case 4: 
       
           // doly angle (for calibration)
-        ui_type_flags |= B00000001;
+        ui_type = UT_Angle;
         
-        if( read_save == true ) {
-          m_angle[motor] = cur_inp_long;
-          eeprom_write(215 + motor, m_angle[motor]);
+        if( save == true ) {
+          EE.m_angle[motor] = cur_inp_long;
+          ee_save();
         }
         
-        cur_inp_long = m_angle[motor];
+        cur_inp_long = EE.m_angle[motor];
         break;
 
         
@@ -206,55 +219,54 @@ void get_m_axis_set( byte pos, boolean read_save, byte motor ) {
       case 6:
           // calibration constant
                 
-        ui_type_flags |= B10000000;
+        ui_type = UT_Float;
         
-        if( read_save == true ) {
-          m_cal_constant[motor] = cur_inp_float;
-          eeprom_write(239 + (motor * 4), m_cal_constant[motor]);
+        if( save == true ) {
+          EECal.m_cal_constant[motor] = cur_inp_float;
+          ee_save();
         }
         
-        cur_inp_float = m_cal_constant[motor];
+        cur_inp_float = EECal.m_cal_constant[motor];
         break;
         
       case 7:
           // min ipm setting
-        ui_type_flags |= B10000000;
-        if( read_save == true ) {
+        ui_type = UT_Float;
+        if( save == true ) {
             
-          min_ipm[motor] = cur_inp_float;
-          min_spd[motor] = 255 * ( min_ipm[motor] / max_ipm[motor] );
-          eeprom_write(40 + (motor*4), min_ipm[motor]);
-          eeprom_write(48 + motor, min_spd[motor]);
+          EE.min_ipm[motor] = cur_inp_float;
+          EE.min_spd[motor] = 255 * ( EE.min_ipm[motor] / EE.max_ipm[motor] );
+          ee_save();
         } 
-        cur_inp_float = min_ipm[motor];
+        cur_inp_float = EE.min_ipm[motor];
 
         break;
         
       case 8:
           // distance per revolution
-        ui_type_flags |= B10000000;
+        ui_type = UT_Float;
  
-        if( read_save == true ) {
-          m_diarev[motor] = cur_inp_float;
-          motor_update_dist(motor, m_rpm[motor], m_diarev[motor]);
-          eeprom_write(16 + (motor*4), m_diarev[motor]);
+        if( save == true ) {
+          EE.m_diarev[motor] = cur_inp_float;
+          motor_update_dist(motor, EE.m_rpm[motor], EE.m_diarev[motor]);
+          ee_save();
         }
         
-        cur_inp_float = m_diarev[motor];
+        cur_inp_float = EE.m_diarev[motor];
 
         break;
 
       case 9:
           // motor min pulse
-        if( read_save == true ) {
+        if( save == true ) {
           
           if(cur_inp_long > 255)
             cur_inp_long = 255;
             
-          m_min_pulse[motor] = cur_inp_long;          
-          eeprom_write(50 + motor, m_min_pulse[motor]);
+          EE.m_min_pulse[motor] = cur_inp_long;          
+          ee_save();
         }
-        cur_inp_long = m_min_pulse[motor];
+        cur_inp_long = EE.m_min_pulse[motor];
         break;
         
 
@@ -265,7 +277,7 @@ void get_m_axis_set( byte pos, boolean read_save, byte motor ) {
 
 
 
-void get_m_cam_set( byte pos, boolean read_save ) {
+void get_m_cam_set( byte pos, boolean save ) {
 
     // reset this flag
   ui_float_tenths = false;
@@ -275,375 +287,446 @@ void get_m_cam_set( byte pos, boolean read_save ) {
     case 0:
         // interval timer
         
-      ui_type_flags |= B10000000;
+      ui_type = UT_Float;
       ui_float_tenths = true;
       
-      if( read_save == true ) { 
-        cam_interval = cur_inp_float;
-        eeprom_write(67, cam_interval);
+      if( save == true ) { 
+        EE.cam_interval = cur_inp_float;
+        ee_save();
       }
-      cur_inp_float = cam_interval;
+      cur_inp_float = EE.cam_interval;
       break;
     case 1:
         // max shots
-      if( read_save == true ) {
-        cam_max = cur_inp_long;
-        eeprom_write(10, cam_max);
+      if( save == true ) {
+        EE.cam_max = cur_inp_long;
+        ee_save();
       }
-      cur_inp_long = cam_max;
+      cur_inp_long = EE.cam_max;
       break;
     case 2:
         // exposure time
-      if( read_save == true ) { 
-        exp_tm = cur_inp_long;
-        eeprom_write(260, exp_tm);
+      if( save == true ) { 
+        EE.exp_tm = cur_inp_long;
+        ee_save();
       }
-      cur_inp_long = exp_tm;
+      cur_inp_long = EE.exp_tm;
       break;    
     case 3:
         // post exp delay
-      if( read_save == true ) { 
-        post_delay_tm = cur_inp_long;
-        eeprom_write(5, post_delay_tm);
+      if( save == true ) { 
+        EE.post_delay_tm = cur_inp_long;
+        ee_save();
       }
-      cur_inp_long = post_delay_tm;
+      cur_inp_long = EE.post_delay_tm;
       break;
     case 4:
         // focus tap tm
-      if( read_save == true ) {
-        focus_tap_tm = cur_inp_long;
-        eeprom_write(3, focus_tap_tm);
+      if( save == true ) {
+        EE.focus_tap_tm = cur_inp_long;
+        ee_save();
       }
-      cur_inp_long = focus_tap_tm;
+      cur_inp_long = EE.focus_tap_tm;
       break;
     case 5:
         // focus w/ shutter
-      ui_type_flags |= B01000000;
-      if( read_save == true ) {
-        focus_shutter = cur_inp_bool;
-        eeprom_write(7, focus_shutter);
+      ui_type = UT_OnOff;
+      if( save == true ) {
+        EE.focus_shutter = cur_inp_bool;
+        ee_save();
       }
-      cur_inp_bool = focus_shutter;
+      cur_inp_bool = EE.focus_shutter;
       break;
    case 6:
        // camera repeat value
-      if( read_save == true ) {
+      if( save == true ) {
         cur_inp_long = cur_inp_long > 255 ? 255 : cur_inp_long;
-        cam_repeat = cur_inp_long;
-        eeprom_write(249, cam_repeat);
+        EE.cam_repeat = cur_inp_long;
+        ee_save();
       }
-      cur_inp_long = cam_repeat;
+      cur_inp_long = EE.cam_repeat;
       break;
   case 7:
       // camera repeat delay
-      if( read_save == true) {
-        cam_rpt_dly = cur_inp_long;
-        eeprom_write(250, cam_rpt_dly);
+      if( save == true) {
+        EE.cam_rpt_dly = cur_inp_long;
+        ee_save();
       }
-      cur_inp_long = cam_rpt_dly;
+      cur_inp_long = EE.cam_rpt_dly;
       break;
   }
 }
+     
+     
+void get_park_select(byte pos, boolean save) {
+  // select Park from menu: left, right
+  // set to "Parking" with up
+  // set to "Stopped" with down
+  // display changes to "Parked" when finished
+    
+  ui_ctrl_flags |= UC_Park;
+  altio_connect(0, IT_Stop); // enable I/O switch
+  m_mode = 1; // set motor speed index to manual 
+  cur_motor = 0; // we only park the dolly
+	ui_type = UT_Park;
+	if (cur_inp_long == 0) {  // stop
+		if( run_status & RS_Motors_Running) { // motors running?
+			motor_control(0, false);  // stop motor
+		  run_status &= (255-RS_Parking); // not parking now
+		}
+	}
+  else if (cur_inp_long == 1) {  // run
+		if( ! (run_status & RS_Motors_Running) ) { // motors stopped?
+		  run_status |= RS_Parking;
+			if (pos == 1)
+				motor_dir(0, 0);  // set direction (right = 0)
+			else
+				motor_dir(0, 1);
+			motor_control(cur_motor, true);  // start motor
+		}
+	}
 
-void get_scope_set(byte pos, boolean read_save) {
+}
+     
+     
+void get_reset_set(byte pos, boolean save) {
+  
+  ui_type = UT_OnOff;
+  if (pos == 0) {
+      // reset calibration memory
+      if( save == true ) {
+        byte check = FIRMWARE_VERSION;
+        if (cur_inp_bool) // reset memory?
+          check = 0; // wipe out check bytes
+        EECal.EE_check1 = check; // force reset of EE vars on restart
+        EECal.EE_check2 = check; // force reset of EE vars on restart
+        ee_save();
+      }
+      if ((EECal.EE_check1 == FIRMWARE_VERSION) && (EECal.EE_check2 == FIRMWARE_VERSION))
+        cur_inp_bool = false; // checks match, no reset
+      else
+        cur_inp_bool = true; // checks do not match, memory will be reset
+  }
+  else { //if (pos == 1) 
+      // reset settings memory
+      if( save == true ) {
+        byte check = FIRMWARE_VERSION;
+        if (cur_inp_bool) // reset memory?
+          check = 0; // wipe out check bytes
+        EE.EE_check1 = check; // force reset of EE vars on restart
+        EE.EE_check2 = check; // force reset of EE vars on restart
+        ee_save();
+      }
+      if ((EE.EE_check1 == FIRMWARE_VERSION) && (EE.EE_check2 == FIRMWARE_VERSION))
+        cur_inp_bool = false; // checks match, no reset
+      else
+        cur_inp_bool = true; // checks do not match, memory will be reset
+  }
+
+}
+
+
+void get_scope_set(byte pos, boolean save) {
 
    // reset this flag
   ui_float_tenths = false;
-  
-  
+  ui_type = UT_Float;
   switch(pos) {
     case 0:
-      ui_type_flags |= B10000000;
-      ui_float_tenths = false;
       
-      if( read_save == true ) {
-        merlin_man_spd[0] = cur_inp_float;
-        merlin_man_spd[0] = merlin_man_spd[0] > 350.0 ? 350.0 : merlin_man_spd[0];
-        eeprom_write(221, merlin_man_spd[0]);
+      if( save == true ) {
+        EE.merlin_man_spd[0] = cur_inp_float;
+        EE.merlin_man_spd[0] = EE.merlin_man_spd[0] > 350.0 ? 350.0 : EE.merlin_man_spd[0];
+        ee_save();
       }
       
-      cur_inp_float = merlin_man_spd[0];
+      cur_inp_float = EE.merlin_man_spd[0];
       break;
    case 1:
-      ui_type_flags |= B10000000;
-      ui_float_tenths = false;
       
-      if( read_save == true ) {
-        merlin_man_spd[1] = cur_inp_float;
-        merlin_man_spd[1] = merlin_man_spd[1] > 350.0 ? 350.0 : merlin_man_spd[1];
-        eeprom_write(225, merlin_man_spd[1]);
+      if( save == true ) {
+        EE.merlin_man_spd[1] = cur_inp_float;
+        EE.merlin_man_spd[1] = EE.merlin_man_spd[1] > 350.0 ? 350.0 : EE.merlin_man_spd[1];
+        ee_save();
       }
       
-      cur_inp_float = merlin_man_spd[1];
+      cur_inp_float = EE.merlin_man_spd[1];
       break;
   }
 }
 
       
 
-void get_global_set(byte pos, boolean read_save) {
-
-  ui_type_flags  = 0;
-  ui_type_flags2 = 0;
+void get_global_set(byte pos, boolean save) {
+  ui_type  = 0;
   
   switch(pos) {
+      
+   case 0:
+     // Alternate Menu Mode
+     
+     ui_type = UT_OnOff;
+     
+     if( save == true ) {
+       EE.alt_menu = cur_inp_bool;
+       ee_save();
+     }
+     
+     cur_inp_bool = EE.alt_menu;
+     break;
   
-    case 0:
+    case 1:
           // motor display type
-        ui_type_flags |= B00001000;      
+        ui_type = UT_IpmPct;      
         
-        if( read_save == true ) {
-          ui_motor_display = cur_inp_bool;
-          eeprom_write(56, ui_motor_display);
+        if( save == true ) {
+          EE.ui_motor_display = cur_inp_bool;
+	        ee_save();
         }
         
-        cur_inp_bool = ui_motor_display;
-        break;
-
-    case 1:
-          // motor slow type
-        ui_type_flags |= B00000100;      
-        
-        if( read_save == true ) {
-          motor_sl_mod = cur_inp_bool;
-          eeprom_write(57, motor_sl_mod);
-        }        
-        
-        cur_inp_bool = motor_sl_mod;
+        cur_inp_bool = EE.ui_motor_display;
         break;
 
     case 2:
+          // motor slow type
+        ui_type = UT_ContSms;      
+        
+        if( save == true ) {
+          EE.motor_mode = cur_inp_bool;
+	        ee_save();
+        }        
+        
+        cur_inp_bool = EE.motor_mode;
+        break;
+
+    case 3:
   
         // backlight level    
-      if(read_save == true) {
-        cur_bkl = cur_inp_long > 255 ? 255 : cur_inp_long;
-        ui_set_backlight(cur_bkl);
-        eeprom_write(266, cur_bkl);
+      if(save == true) {
+        EE.cur_bkl = cur_inp_long > 255 ? 255 : cur_inp_long;
+        ui_set_backlight(EE.cur_bkl);
+        ee_save();
       }
       
-      cur_inp_long = cur_bkl;
+      cur_inp_long = EE.cur_bkl;
       break;
       
-   case 3:
+   case 4:
    
        // lcd dim time
-     if( read_save == true ) {
-       lcd_dim_tm = cur_inp_long;
-       eeprom_write(58, lcd_dim_tm);
+     if( save == true ) {
+       EE.lcd_dim_tm = cur_inp_long;
+       ee_save();
      }
      
-     cur_inp_long = lcd_dim_tm;
+     cur_inp_long = EE.lcd_dim_tm;
      break;
      
-   case 4:
+   case 5:
         // blank lcd   
-      ui_type_flags |= B01000000;
+      ui_type = UT_OnOff;
       
-      if( read_save == true ) {
-        blank_lcd = cur_inp_bool;
-        eeprom_write(60, blank_lcd);
+      if( save == true ) {
+        EE.blank_lcd = cur_inp_bool;
+        ee_save();
       }
       
-      cur_inp_bool = blank_lcd;
+      cur_inp_bool = EE.blank_lcd;
       break;
       
-   case 5: 
+   case 6: 
        // input 1
        
-      ui_type_flags2 |= B10000000;
+      ui_type = UT_AltIO;
       
-      if( read_save == true ) {
+      if( save == true ) {
+        EE.input_type[0] = cur_inp_long;
+        ee_save();
         altio_connect(0, cur_inp_long);
-        eeprom_write(217,input_type[0]);
       }
       
-      cur_inp_long = input_type[0];
+      cur_inp_long = EE.input_type[0];
       break;
 
-   case 6: 
+   case 7: 
        // input 2
        
-      ui_type_flags2 |= B10000000;
+      ui_type = UT_AltIO;
       
-      if( read_save == true ) {
+      if( save == true ) {
+        EE.input_type[1] = cur_inp_long;
         altio_connect(1, cur_inp_long);
-        eeprom_write(218,input_type[1]);
+        ee_save();
       }
       
-      cur_inp_long = input_type[1];
+      cur_inp_long = EE.input_type[1];
       break;
       
-   case 7:
+   case 8:
       // metric display
-     ui_type_flags |= B01000000;
+     ui_type = UT_OnOff;
      
-     if( read_save == true ) {
-       if ( cur_inp_bool != ui_is_metric ) {
+     if( save == true ) {
+       if ( cur_inp_bool != EE.ui_is_metric ) {
          
            // only convert values when the 
            // UI metric type changes
            
            
-         if( ui_is_metric ) {
+         if( EE.ui_is_metric ) {
            // going to imperial
-           m_diarev[0] = m_diarev[0] / 2.54;
-           min_ipm[0]  = min_ipm[0] / 2.54;
-           m_diarev[1] = m_diarev[1] / 2.54;
-           min_ipm[1]  = min_ipm[1] / 2.54;
+           EE.m_diarev[0] = EE.m_diarev[0] / 2.54;
+           EE.min_ipm[0]  = EE.min_ipm[0] / 2.54;
+           EE.m_diarev[1] = EE.m_diarev[1] / 2.54;
+           EE.min_ipm[1]  = EE.min_ipm[1] / 2.54;
 
          }
          else {
            // going to metric
-           m_diarev[0] *= 2.54;
-           min_ipm[0]  *= 2.54;
-           m_diarev[1] *= 2.54;
-           min_ipm[1]  *= 2.54;
+           EE.m_diarev[0] *= 2.54;
+           EE.min_ipm[0]  *= 2.54;
+           EE.m_diarev[1] *= 2.54;
+           EE.min_ipm[1]  *= 2.54;
          }
          
-         ui_is_metric = cur_inp_bool;
-           // write values to memory
-         eeprom_write(219, ui_is_metric);
+         EE.ui_is_metric = cur_inp_bool;
+         ee_save(); // write values to memory
          
-         eeprom_write(16, m_diarev[0]);
-         eeprom_write(20, m_diarev[1]);  
-         eeprom_write(40, min_ipm[0]);
-         eeprom_write(44, min_ipm[1]);
-         
-         motor_update_dist(0, m_rpm[0], m_diarev[0]);
-         motor_update_dist(1, m_rpm[1], m_diarev[1]);
+         motor_update_dist(0, EE.m_rpm[0], EE.m_diarev[0]);
+         motor_update_dist(1, EE.m_rpm[1], EE.m_diarev[1]);
   
        }
        
      }
      
-     cur_inp_bool = ui_is_metric;
-     break;
-     
-   case 8:
-     // reset memory
-
-     ui_type_flags |= B01000000;
-     
-     if( read_save == true ) {
-       if( cur_inp_bool )
-         eeprom_saved(false);
-     }
-     
-     cur_inp_bool = false;
+     cur_inp_bool = EE.ui_is_metric;
      break;
      
    case 9:
      // merlin enable
-      ui_type_flags |= B01000000;
+      ui_type = UT_OnOff;
       
-      if( read_save == true ) {
-        merlin_enabled = cur_inp_bool;
-        eeprom_write(220, merlin_enabled);
+      if( save == true ) {
+        EE.merlin_enabled = cur_inp_bool;
+        ee_save();
       }
       
-      cur_inp_bool = merlin_enabled;
+      cur_inp_bool = EE.merlin_enabled;
       break;
 
    case 10:
      // low calibration spd
-      ui_type_flags2 |= B01000000;
+      ui_type = UT_CalSpeed;
       
-      if( read_save == true ) {
-        motor_spd_cal[0] = cur_inp_long;
-        eeprom_write(237, motor_spd_cal[0]);
+      if( save == true ) {
+        EECal.m_cal_speed[0] = cur_inp_long;
+        ee_save();
       }
       
-      cur_inp_long = motor_spd_cal[0];
+      cur_inp_long = EECal.m_cal_speed[0];
       break;
 
    case 11:
      // high calibration spd
-      ui_type_flags2 |= B01000000;
+      ui_type |= UT_CalSpeed;
       
-      if( read_save == true ) {
-        motor_spd_cal[1] = cur_inp_long;
-        eeprom_write(238, motor_spd_cal[1]);
+      if( save == true ) {
+        EECal.m_cal_speed[1] = cur_inp_long;
+        ee_save();
       }
       
-      cur_inp_long = motor_spd_cal[1];
+      cur_inp_long = EECal.m_cal_speed[1];
       break;
   
   case 12: 
     // alt output pre time
     
-    if( read_save == true ) {
-      ext_trig_pre_delay = cur_inp_long;
-      eeprom_write(252, ext_trig_pre_delay);
+    if( save == true ) {
+      EE.ext_trig_pre_delay = cur_inp_long;
+      ee_save();
     }
     
-    cur_inp_long = ext_trig_pre_delay;
+    cur_inp_long = EE.ext_trig_pre_delay;
     break;
     
   case 13:
     // alt output post time
     
-    if( read_save == true ) {
-      ext_trig_pst_delay = cur_inp_long;
-      eeprom_write(256, ext_trig_pst_delay);
+    if( save == true ) {
+      EE.ext_trig_pst_delay = cur_inp_long;
+      ee_save();
     }
     
-    cur_inp_long = ext_trig_pst_delay;
+    cur_inp_long = EE.ext_trig_pst_delay;
     break;
      
    case 14:
      // GB enable
-      ui_type_flags |= B01000000;
+      ui_type = UT_OnOff;
       
-      if( read_save == true ) {
-        gb_enabled = cur_inp_bool;
-        eeprom_write(264, gb_enabled);
+      if( save == true ) {
+        EE.gb_enabled = cur_inp_bool;
+        ee_save();
       }
       
-      cur_inp_bool = gb_enabled;
+      cur_inp_bool = EE.gb_enabled;
       break;
 
    case 15:
      // invert dir display
-      ui_type_flags |= B01000000;
+      ui_type = UT_OnOff;
       
-      if( read_save == true ) {
-        ui_invdir = cur_inp_bool;
-        eeprom_write(265, ui_invdir);
+      if( save == true ) {
+        EE.ui_invdir = cur_inp_bool;
+        ee_save();
       }
       
-      cur_inp_bool = ui_invdir;
+      cur_inp_bool = EE.ui_invdir;
       break;
       
    case 16:
      // flip I/O trigger type
      
-     ui_type_flags |= B01000000;
+     ui_type = UT_OnOff;
      
-     if( read_save == true ) {
-       altio_dir = (cur_inp_bool == false) ? FALLING : RISING;
-       eeprom_write(52, altio_dir);
+     if( save == true ) {
+       EE.altio_dir = (cur_inp_bool == false) ? FALLING : RISING;
+       ee_save();
      }
      
-     cur_inp_bool = (altio_dir == FALLING) ? false : true;
+     cur_inp_bool = (EE.altio_dir == FALLING) ? false : true;
      break;
      
+   case 17:
+     // Cursor Style
+     
+     ui_type = UT_OnOff;
+     
+     if( save == true ) {
+       bool ce = Cursor_Enabled; // remember current setting
+       setBlink(false); // turn it off
+       EE.ul_cursor = cur_inp_bool;
+       setBlink(ce); // reset with new style
+       ee_save();
+     }
+     
+     cur_inp_bool = EE.ul_cursor;
+     break;
+  
   }
-  
-  
   
 }
 
 
-void get_mainscr_set(byte pos, boolean read_save) {
+void get_mainscr_set(byte pos, boolean save) {
 
     // clear out previous on/off select
      
-  ui_type_flags   = 0;
-  ui_type_flags2  = 0;
+  ui_type   = 0;
   ui_float_tenths = false;
 
   if( merlin_flags & B00010000 ) {
-    get_merlin_set(pos, read_save);
+    get_merlin_set(pos, save);
     return;
   }  
 
@@ -654,7 +737,7 @@ void get_mainscr_set(byte pos, boolean read_save) {
         
       lcd.setCursor(0,0);
       
-      if( read_save ) {
+      if( save ) {
         if( cur_inp_bool > 0 ) {   
             // if set to positive value
        
@@ -667,9 +750,9 @@ void get_mainscr_set(byte pos, boolean read_save) {
         
       }
         
-      ui_type_flags |= B01000000;
+      ui_type = UT_OnOff;
       
-      cur_inp_bool = run_status >> 7;
+      cur_inp_bool = run_status >> 7; // RS_Running
       break;
 
     case 2:
@@ -677,15 +760,15 @@ void get_mainscr_set(byte pos, boolean read_save) {
         // set interval time
       lcd.setCursor(4, 0);
       
-      ui_type_flags |= B10000000;
+      ui_type = UT_Float;
       ui_float_tenths = true;
       
-      if( read_save ) {
-        cam_interval = cur_inp_float;
-        eeprom_write(67, cam_interval);
+      if( save ) {
+        EE.cam_interval = cur_inp_float;
+        ee_save();
       }
 
-      cur_inp_float = cam_interval;
+      cur_inp_float = EE.cam_interval;
       break;
       
     case 3:
@@ -693,11 +776,11 @@ void get_mainscr_set(byte pos, boolean read_save) {
         // dir for m1
       lcd.setCursor(0,1);
 
-      if( read_save )
+      if( save )
         motor_dir(0, cur_inp_bool);
            
-      ui_type_flags |= B00010000;
-      cur_inp_bool = m_wasdir[0];
+      ui_type = UT_LtRt;
+      cur_inp_bool = EE.m_dirs[m_mode][0];
       break;
 
     case 4:
@@ -705,25 +788,27 @@ void get_mainscr_set(byte pos, boolean read_save) {
 
       lcd.setCursor(1,1);
 
-      if( ! motor_sl_mod ) {
+      if( ! EE.motor_mode ) {
           // shoot-move-shoot?
           
-        cur_inp_long = cur_inp_long > m_maxsms[0] ? m_maxsms[0] : cur_inp_long;
+        cur_inp_long = cur_inp_long > EE.m_maxsms[0] ? EE.m_maxsms[0] : cur_inp_long;
       } 
       else {       
         
         cur_inp_long = cur_inp_long > 255 ? 255 : cur_inp_long;
       }
       
-      if( read_save ) {
+      if( save ) {
         motor_set_speed(0, (unsigned int) cur_inp_long); 
+        EE.m_speeds[m_mode][0] = m_speeds[m_mode][0];
+        ee_save();
             // calculate speed change per shot for ramping
             // if needed - use function to update values
-        motor_set_ramp(0, m_ramp_set[0]);
+        motor_set_ramp(0, EE.m_ramp_set[0]);  // should this be done when motors are started?
            
       }
       
-      cur_inp_long = m_speeds[0];
+      cur_inp_long = m_speeds[m_mode][0];
               
       break;
 
@@ -731,11 +816,11 @@ void get_mainscr_set(byte pos, boolean read_save) {
         // dir for m2
       lcd.setCursor(8,1);
  
-      if( read_save )
+      if( save )
         motor_dir(1, cur_inp_bool);
            
-      ui_type_flags |= B00010000;
-      cur_inp_bool = m_wasdir[1];
+      ui_type = UT_LtRt;
+      cur_inp_bool = EE.m_dirs[m_mode][1];
       break;
       
     case 6:
@@ -743,24 +828,26 @@ void get_mainscr_set(byte pos, boolean read_save) {
         
       lcd.setCursor(9,1);
       
-     if( ! motor_sl_mod ) {
+     if( ! EE.motor_mode ) {
           // shoot-move-shoot?
           
-        cur_inp_long = cur_inp_long > m_maxsms[1] ? m_maxsms[1] : cur_inp_long;
+        cur_inp_long = cur_inp_long > EE.m_maxsms[1] ? EE.m_maxsms[1] : cur_inp_long;
       } 
       else {        
         cur_inp_long = cur_inp_long > 255 ? 255 : cur_inp_long;
       }
 
       
-      if( read_save ) {
+      if( save ) {
         motor_set_speed(1, (unsigned int) cur_inp_long); 
+        EE.m_speeds[m_mode][1] = m_speeds[m_mode][1];
+        ee_save();
             // calculate speed change per shot for ramping
             // if needed - use function to update values
-        motor_set_ramp(1, m_ramp_set[1]);
+        motor_set_ramp(1, EE.m_ramp_set[1]);
       }
 
-      cur_inp_long = m_speeds[1];
+      cur_inp_long = m_speeds[m_mode][1];
       break;
    }
    
@@ -768,10 +855,9 @@ void get_mainscr_set(byte pos, boolean read_save) {
 }
 
 
-void get_merlin_set(byte pos, boolean read_save) {
+void get_merlin_set(byte pos, boolean save) {
   
-  ui_type_flags   = 0;
-  ui_type_flags2  = 0;
+  ui_type   = 0;
   ui_float_tenths = false;
   
   switch(pos) {
@@ -781,7 +867,7 @@ void get_merlin_set(byte pos, boolean read_save) {
         
       lcd.setCursor(0,0);
       
-      if( read_save ) {
+      if( save ) {
         if( cur_inp_bool > 0 ) {   
             // if set to positive value
        
@@ -794,9 +880,9 @@ void get_merlin_set(byte pos, boolean read_save) {
         
       }
         
-      ui_type_flags |= B01000000;
+      ui_type = UT_OnOff;
       
-      cur_inp_bool = run_status >> 7;
+      cur_inp_bool = run_status >> 7; // RS_Running
       break;
 
     case 2: 
@@ -804,25 +890,23 @@ void get_merlin_set(byte pos, boolean read_save) {
 
       lcd.setCursor(0,1);
 
-      if( read_save )
+      if( save )
         merlin_set_dir(0, cur_inp_bool);
       
-      ui_type_flags |= B00010000;
+      ui_type = UT_LtRt;
       cur_inp_bool = merlin_dir[0];
       break;      
       
    case 3:
      // speed for yaw
        lcd.setCursor(1,1);
-       ui_type_flags |= B10000000;
+       ui_type = UT_Float;
        ui_float_tenths = false;
- 
-
-      
+     
         // degrees
       cur_inp_float = cur_inp_float > 360.0 ? 360.0 : cur_inp_float;
       
-      if( read_save ) 
+      if( save ) 
         merlin_set_speed(0, cur_inp_float); 
               
       cur_inp_float = merlin_speeds[0];
@@ -833,24 +917,24 @@ void get_merlin_set(byte pos, boolean read_save) {
 
       lcd.setCursor(8,1);
 
-      if( read_save )
+      if( save )
         merlin_set_dir(1, cur_inp_bool);
            
-      ui_type_flags |= B00010000;
+      ui_type = UT_LtRt;
       cur_inp_bool = merlin_dir[1];
       break;
       
    case 5:
      // speed for yaw
        lcd.setCursor(9,1);
-       ui_type_flags |= B10000000;
+       ui_type = UT_Float;
        ui_float_tenths = false;
  
 
         // degrees
       cur_inp_float = cur_inp_float > 360.0 ? 360.0 : cur_inp_float;
       
-      if( read_save ) 
+      if( save ) 
         merlin_set_speed(1, cur_inp_float); 
               
       cur_inp_float = merlin_speeds[1];
@@ -866,7 +950,8 @@ void get_manual_select(byte pos) {
 
   
     // set in manual mode
-  ui_ctrl_flags |= B00000100;
+  ui_ctrl_flags |= UC_Manual;
+  m_mode = 1; // set motor speed index to manual 
 
     // merlin manual screen
     
@@ -901,11 +986,11 @@ void get_calibrate_select(byte pos) {
 
 void display_spd_ipm(unsigned int spd, byte motor) {
   
-  float cur_ipm = motor_calc_ipm(motor, spd, motor_sl_mod);
+  float cur_ipm = motor_calc_ipm(motor, spd, EE.motor_mode);
   lcd.print(cur_ipm, 2);
   
         // handle metric conversion
-  if( ui_is_metric ) {
+  if( EE.ui_is_metric ) {
      lcd.print('c');
   }
   else {

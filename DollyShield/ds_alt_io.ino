@@ -29,121 +29,57 @@
 */
 
 
-
-void altio_isr_handler(byte which) {
-  
-    // from internals
-  extern volatile unsigned long timer0_millis;
-  
-  if( timer0_millis - input_trig_last > ALT_TRIG_THRESH ) {
-    
-    input_trig_last = timer0_millis;
-    
-    switch( input_type[which] ) {
-      
-      case 1:
-        start_executing();
-        break;
-        
-      case 2:
-        stop_executing();
-        break;
-        
-      case 3:
-        altio_flip_runstat();
-        break;
-        
-      case 4: 
-          // set camera ok to fire
-        external_interval |= B00100000;
-        break;
-        
-      case 8:
-          // switch all motor directions!
-        motor_dir(0, !m_wasdir[0]);
-        motor_dir(1, !m_wasdir[1]);
-        break;
-        
-      default:
-        break;
-    } // end switch
-  } //end if timer0...
-}
-
-      
-void altio_isr_one() {
-  altio_isr_handler(0);
-}
-
-
-void altio_isr_two() {
-  altio_isr_handler(1);
-}
-
-
 void altio_connect(byte which, byte type) {
-  
-  input_type[which] = type;
 
-    // type == 5, 6, 7 changes from input to output, handle this
-    // deviation
-    
-  if( type == 5 || type == 6 || type == 7 ) {
-          // output mode
-    detachInterrupt(which);
-    pinMode(2+which,OUTPUT);
-      // set correct flag, as needed
-    if( type == 5 ) {
-      external_trigger |= B10000000 >> which;
-    }
-    else if( type == 6 ) {
-      external_trigger |= B00100000 >> which;
-    }
-    else {
-      external_trigger |= B10100000 >> which;
-    }
-    
-    return;
-  }
+		// for type == Out Before, Out After, Out Both pin changes from input to output, 
+		// handle this deviation
+	if( type == IT_OutBefore || type == IT_OutAfter || type == IT_OutBoth ) {
+			// output mode
+		pinMode(2+which,OUTPUT);
+//	  Serial.print("pinMode ");	Serial.print(2+which, DEC); Serial.println(" OUTPUT");
+			// set correct flag, as needed
+		if( type == IT_OutBefore ) {
+			external_trigger |= B10000000 >> which;
+		}
+		else if( type == IT_OutAfter ) {
+			external_trigger |= B00100000 >> which;
+		}
+		else {
+			external_trigger |= B10100000 >> which;
+		}
+		return;
+	}
 
-  if( type == 0 ) {
-      detachInterrupt(which);
-      digitalWrite(2+which, LOW);
-        // disable external interval for this line (just in case it
-        // was ever set)
-      external_interval &= (B11111111 ^ (B10100000 >> which));
-      return;
-  }
-  else if( type == 4 ) {
-    // our external intervalometer functon
-    
-      // enable external intervalometer for this line
-    external_interval |= B10000000 >> which;
-  }
-  else {
-        // disable external interval for this line (just in case it
-        // was ever set)
-      external_interval &= (B11111111 ^ (B10100000 >> which));
-  }
-  
-    // set pin as input
-  pinMode(2+which, INPUT);
-    // enable pull-up resistor
-  digitalWrite(2+which, HIGH);
-  
-  if( which ) {
-    attachInterrupt(1, altio_isr_two, altio_dir);
-  }
-  else {
-    attachInterrupt(0, altio_isr_one, altio_dir);
-  }
-  
+	if( type == IT_Disabled ) {
+			digitalWrite(2+which, LOW);
+				// disable external interval for this line (just in case it
+				// was ever set)
+			external_interval &= (B11111111 ^ (B10100000 >> which));
+			return;
+	}
+	
+	if( type == IT_ExtInterval ) {
+		// our external intervalometer functon
+		
+			// enable external intervalometer for this line
+		external_interval |= B10000000 >> which;
+	}
+	else {
+				// disable external interval for this line (just in case it
+				// was ever set)
+			external_interval &= (B11111111 ^ (B10100000 >> which));
+	}
+		
+		// set pin as input & enable pull-up resistor
+	pinMode(EXT_PIN1+which, INPUT_PULLUP);
+//  Serial.print("pinMode ");	Serial.print(2+which, DEC); Serial.println(" INPUT_PULLUP");
+	
 }    
   
 void altio_flip_runstat() {
     // if currently running, stop; if not, start
     
-  if( run_status & B10000000 ) {
+  if( run_status & RS_Running ) {
     // running
     stop_executing();
   }
@@ -155,9 +91,9 @@ void altio_flip_runstat() {
 
 void alt_ext_trigger_engage(boolean predel) {
 
-  unsigned long dly = predel == true ? ext_trig_pre_delay : ext_trig_pst_delay;
+  unsigned long dly = predel == true ? EE.ext_trig_pre_delay : EE.ext_trig_pst_delay;
     // set flag
-  run_status |= B00001000;
+  run_status |= RS_External_Trigger;
   
     // we use the interrupt pins, 2&3
     
@@ -189,6 +125,5 @@ void alt_ext_trigger_disengage() {
   MsTimer2::stop();
   
     // clear flag...
-  run_status &= B11110111;
+  run_status &= (255-RS_External_Trigger);
 }
-

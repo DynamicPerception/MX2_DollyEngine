@@ -103,7 +103,7 @@ void merlin_move_manual(byte axis, byte dir) {
   // moving at ratio 3 as it works better with higher load (does not slip)
   merlin.init();
   merlin.setRatio(axis+1, 3);
-  merlin.setSpeed(axis+1, merlin_man_spd[axis]);
+  merlin.setSpeed(axis+1, EE.merlin_man_spd[axis]);
   merlin_set_dir(axis,dir);
   merlin_run(axis);
 }
@@ -127,9 +127,9 @@ void show_merlin() {
  merlin_flags |= B00100000;
 
  lcd.clear();
- lcd.noBlink();
+ setBlink(false);
 
- lcd.setCursor(0, 0);
+// lcd.setCursor(0, 0);
 
  lcd.print("Scope Manual");
  

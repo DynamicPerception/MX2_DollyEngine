@@ -44,7 +44,7 @@ void fire_camera(unsigned long exp_tm) {
     // determine if focus pin should be brought high
     // w. the shutter pin (for some nikons, etc.)
     
-  if( focus_shutter )
+  if( EE.focus_shutter )
     digitalWrite(FOCUS_PIN, HIGH);
     
   digitalWrite(CAMERA_PIN, HIGH);
@@ -52,9 +52,9 @@ void fire_camera(unsigned long exp_tm) {
   MsTimer2::set(exp_tm, stop_camera);
   MsTimer2::start();
 
-    // update camera currently enaged
+    // update camera currently engaged
     // (turn on bit)
-  run_status |= B01000000;
+  run_status |= RS_Camera_Active;
   
   return;
 }
@@ -93,10 +93,10 @@ void stop_camera() {
     // than the max possible camera exposure timing
     
       // update camera currently engaged
-  run_status &= B10111111;
+  run_status &= (255-RS_Camera_Active);
 
       // update camera cycle complete
-  run_status |= B00100000;
+  run_status |= RS_Camera_Complete;
    
 }
 
@@ -110,10 +110,10 @@ void camera_clear() {
  MsTimer2::stop(); // turn off timer
  
       // update camera currently engaged
- run_status &= B10111111;
+ run_status &= (255-RS_Camera_Active);
 
       // update camera cycle complete
- run_status |= B00100000;
+ run_status |= RS_Camera_Complete;
  
 }  
 
@@ -139,12 +139,12 @@ float calc_total_cam_tm() {
   byte pf_tm = 0;
   
     // add 100ms pre-focus tap clear value
-  if( focus_tap_tm > 0 ) 
-    pf_tm = focus_tap_tm + 100;
+  if( EE.focus_tap_tm > 0 ) 
+    pf_tm = EE.focus_tap_tm + 100;
     
-  float total = (float) ( exp_tm + pf_tm + post_delay_tm  );
+  float total = (float) ( EE.exp_tm + pf_tm + EE.post_delay_tm  );
   
-  if( ! motor_sl_mod )
+  if( ! EE.motor_mode )
     total += m_sms_tm[0] + m_sms_tm[1];
     
   total = total / 1000.00;

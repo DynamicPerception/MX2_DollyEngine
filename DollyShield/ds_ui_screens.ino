@@ -34,9 +34,9 @@ void prep_home_screen() {
   lcd.clear();
   lcd.setCursor(0,0);
 
-  if( run_status & B10000000 ) {
+  if( run_status & RS_Running ) {
       // in 'external intervalometer' mode, show 'ext' inseatd of 'on'
-    if( external_interval & B11000000 || gb_enabled == true ) {
+    if( external_interval & B11000000 || EE.gb_enabled == true ) {
       lcd.print("Ext");
     }
     else {
@@ -101,11 +101,11 @@ void show_home() {
     // required between shots
   float i_total = calc_total_cam_tm();
   
-  if( cam_interval < i_total ) {
+  if( EE.cam_interval < i_total ) {
     lcd.print(i_total, 1);
   }
   else {
-    lcd.print((float) cam_interval, 1);
+    lcd.print((float) EE.cam_interval, 1);
   }
   
   lcd.print("s ");
@@ -131,43 +131,57 @@ void show_home() {
   lcd.setCursor(0,1);
   
       // dir displays
-  char lt = ui_invdir == true ? 'R' : 'L';
-  char rt = ui_invdir == true ? 'L' : 'R';
-
-  if( m_wasdir[0] == 1 ) {
-    lcd.print(lt);
+//  char lt = EE.ui_invdir == true ? 'R' : 'L';
+//  char rt = EE.ui_invdir == true ? 'L' : 'R';
+  // wbp - display is the same, motion is different!
+  if( EE.m_dirs[m_mode][0] == 1 ) {
+    lcd.print('L');
   }
   else {
-    lcd.print(rt);
+    lcd.print('R');
   }
 
+	unsigned int mspd = m_speeds[m_mode][0];
  
-if( ui_motor_display ) {
-  // display pct 
-   display_spd_ipm(m_speeds[0], 0);
- }
- else {
-  display_spd_pct(m_speeds[0]);
- }
-
+  if( EE.ui_motor_display ) { 
+     // display ipm 
+    display_spd_ipm(mspd,0);
+  }
+  else {
+    display_spd_pct(mspd);
+  }
+  
+//  char md = ' '; // display motor direction if moving
+//  if (run_status & RS_Motors_Running)
+//    if (m_state[0] > 0)
+//     md = "><"[EE.m_dirs[m_mode][0]];
+//  lcd.print(md);
+ 
  
   lcd.setCursor(8,1);
   
   
-  if( m_wasdir[1] == 1 ) {
-    lcd.print(lt);
+  if( EE.m_dirs[m_mode][1] == 1 ) {
+    lcd.print('L');
   }
   else {
-    lcd.print(rt);
+    lcd.print('R');
   }
 
-if( ui_motor_display ) {
-  // display pct 
-   display_spd_ipm(m_speeds[1], 1);
- }
- else {
-  display_spd_pct(m_speeds[1]);
- }
+  mspd = m_speeds[m_mode][1];
+  if( EE.ui_motor_display ) {
+     // display ipm 
+    display_spd_ipm(mspd,1);
+  }
+  else {
+    display_spd_pct(mspd);
+  }
+  
+//  md = ' ';
+//  if (run_status & RS_Motors_Running)
+//    if (m_state[1] > 0)
+//      md = "><"[EE.m_dirs[m_mode][1]];
+//  lcd.print(md);
 
     // we call this here mainly to reset the
     // cursor position when in an input
@@ -178,42 +192,59 @@ if( ui_motor_display ) {
 
 void main_screen_select(boolean dir) {
   
-  if( main_scr_input == 0 && dir == true ) {
-    lcd.blink();
-  }
+  setBlink(true);
+    // is Scope setting on?
+  if( EE.merlin_enabled ) {
   
-  if( dir ) {
+  }
+    
+    
+    // merlin screen has five inputs, normal home has six
+  byte max_inputs = 6;
+  if (EE.merlin_enabled && merlin_flags & B00010000)
+    max_inputs = 5;
+  
+  if( dir ) { // going right
     main_scr_input++;
+    if( main_scr_input > max_inputs) {
+      if (EE.merlin_enabled) {
+        setBlink(false);
+        main_scr_input = 0;  // dead spot to allow paging
+        return;
+      }
+      else {
+        main_scr_input = 1; // wrap around
+        return;
+      }
+    }
   }
-  else {
-    main_scr_input--;
+  else { // going left
+    if (main_scr_input > 1)
+      main_scr_input--;
+    else {
+      if (EE.merlin_enabled) {
+        setBlink(false);
+        main_scr_input = 0;  // dead spot to allow paging
+        return;
+      }
+      else {
+        main_scr_input = 6; // wrap around
+        return;
+      }
+    }
   }
 
-    
-    // merlin screen has five inputs, normal home
-    // has six
-    
-  byte max_inputs = (merlin_flags & B00010000) ? 5 : 6;
+  get_mainscr_set(main_scr_input, false);
 
-    // exit main scr setup
-  
-  if( (dir == true && main_scr_input > max_inputs) ||
-      (dir == false && main_scr_input == 0 ) ) {
-    lcd.noBlink();
-    main_scr_input = 0;
-    return;
-  }
-  
- get_mainscr_set(main_scr_input, false);
 }
 
       
 void show_manual() {
 
- ui_ctrl_flags |= B00000100;
+//  ui_ctrl_flags |= UC_Manual;  // wbp: it's already on
 
  lcd.clear();
- lcd.noBlink();
+ setBlink(false);
 
  lcd.setCursor(0, 0);
 
@@ -227,15 +258,21 @@ void show_manual() {
  lcd.setCursor(0, 1);
  lcd.print("Speed: ");
 
- if( ui_motor_display ) {
+ unsigned int mspd = m_speeds[1][cur_motor];
+ if( EE.ui_motor_display ) {
   // display ipm 
-   display_spd_ipm(m_speeds[cur_motor], cur_motor);
+   display_spd_ipm(mspd, cur_motor);
  }
  else {
-  display_spd_pct(m_speeds[cur_motor]);
+  display_spd_pct(mspd);
  }
  
-  
+// lcd.setCursor(15,1);
+// char md = ' '; // display motor direction if moving
+// if (m_state[cur_motor])
+//   md = "><"[EE.m_dirs[1][cur_motor]];
+// lcd.print(md);
+ 
 }
 
  
@@ -243,12 +280,12 @@ void show_calibrate() {
 
     // show the motor calibrate screen
     
- ui_ctrl_flags |= B00000001;
+ ui_ctrl_flags |= UC_Calibrate;
 
  lcd.clear();
- lcd.noBlink();
+ setBlink(false);
 
- lcd.setCursor(0,0);
+// lcd.setCursor(0,0);
  
  lcd.print("Cal M");
  lcd.print(cur_motor + 1, DEC);
@@ -266,9 +303,9 @@ void show_calibrate() {
 void execute_calibrate() {
 
     // in calibration  
-  ui_cal_scrn_flags |= B10000000;
+  ui_cal_scrn_flags |= US_Calibrate;
     // floating point input
-  ui_type_flags |= B10000000;
+  ui_type = UT_Float;
 
   ui_float_tenths = false;
  
@@ -278,8 +315,8 @@ void execute_calibrate() {
   
     // sms calibration
   for( byte i = 0; i <= 1; i++ ) {
-    float traveled = 0.01 * (max_ipm[cur_motor]);
-    unsigned int runspd = 0.01 * m_maxsms[cur_motor];
+    float traveled = 0.01 * (EE.max_ipm[cur_motor]);
+    unsigned int runspd = 0.01 * EE.m_maxsms[cur_motor];
     cur_inp_float = traveled;
 
     completed++;
@@ -303,14 +340,14 @@ void execute_calibrate() {
         byte held = ui_button_check();
     }
     
-    m_cal_array[cur_motor][m_cur_cal][0][i] = traveled / cur_inp_float;
+    EECal.m_cal_array[cur_motor][m_cur_cal][0][i] = traveled / cur_inp_float;
 
   }
 
   
     // pulse calibration  
   for( byte c = 1; c <= 2; c++ ) {
-    byte ths_spd = c == 1 ? motor_spd_cal[0] : motor_spd_cal[1];
+    byte ths_spd = c == 1 ? EECal.m_cal_speed[0] : EECal.m_cal_speed[1];
     
     for( byte i = 0; i <= 1; i++ ) {
       float des_ipm = motor_calc_ipm(cur_motor, ths_spd, true);
@@ -336,21 +373,20 @@ void execute_calibrate() {
           byte held = ui_button_check();
       }
       
-      m_cal_array[cur_motor][m_cur_cal][c][i] = ( cur_inp_float / des_ipm );
+      EECal.m_cal_array[cur_motor][m_cur_cal][c][i] = ( cur_inp_float / des_ipm );
     }
   }
 
   
-  ui_cal_scrn_flags &= B01111111;
-  ui_cal_scrn_flags |= B01000000;
+  ui_cal_scrn_flags &= (255-US_Calibrate);
+  ui_cal_scrn_flags |= US_CalibrateDone;
   
    // save values to memory
    // handle m_cal_array in a sane manner
    // float m_cal_array[2][3][3][2] 
    // 2 * 3 * 3 * 2 * 4 = 144
    
-  byte* p = (byte*)(void*)&m_cal_array;
-  eeprom_write(71, *p, 144);
+   ee_save();
   
 }
 
