@@ -18,3 +18,4 @@ wbp: code size reduction (ee structures), several bug fixes,<br>
   underline cursor option<br>
   debounce external switch inputs<br>
   change "motor sl.mod" to "motor mode"<br>
+  fix bugs in manual move & backlight timeout

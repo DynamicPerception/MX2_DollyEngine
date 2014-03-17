@@ -231,7 +231,7 @@ byte ui_button_check() {
   
   byte button = get_button(); // any button down now?
  
-  byte bt_press = check_button( button ); 
+  byte bt_press = check_button( button); // first press, hold, repeating?
    
   if( bt_press == 0 ) 
     return(false);  // not pressed
@@ -241,18 +241,20 @@ byte ui_button_check() {
     inp_val_mult  = 1;
     handle_input(button, false);
   }
-  else if( bt_press == 2 ) {
+  else if( bt_press >= 2 ) {
     held = true;
     handle_input(button, true);
     
-    hold_but_cnt++;
-    if( hold_but_cnt >= 8 ) {
-      if (inp_val_mult < 1000)
-        inp_val_mult *= HOLD_BUT_VALINC;
-      else
-        inp_val_mult = 1000;
-      hold_but_cnt = 0;
-    }
+    if ( bt_press == 3) {  // button repeating?
+      hold_but_cnt++;
+      if( hold_but_cnt >= 10 ) {
+        if (inp_val_mult < 1000)
+          inp_val_mult *= HOLD_BUT_VALINC;
+        else
+          inp_val_mult = 1000;
+        hold_but_cnt = 0;
+      }
+		}
 
   } // end else if button press state == 2
 
@@ -273,12 +275,12 @@ byte get_button() {
 		// did value change by more than the threshold?
   if( abs(last_but_rd - val_read) > BUT_THRESH ) { 
     last_but_rd = val_read;
-    push_but_tm = millis(); // start debounce timer
+    but_push_tm = millis(); // start debounce timer
     return 0;
   }
 
 		// value is consistent, how long has it been this way?
-	if (millis() - push_but_tm < BUT_DEBOUNCE_MS) {
+	if (millis() - but_push_tm < BUT_DEBOUNCE_MS) {
 		return 0; // not long enough yet
 	}
   
@@ -315,22 +317,31 @@ byte check_button(byte button) {
 
     // if this button was pressed at last call
   if( button>0 && button_pressed == button ) {
-    if ((millis() - button_down_tm) > button_hold_ms) {
-      button_down_tm = millis();
-      button_hold_ms = BUT_REPEAT_MS;
-      return(2); // button held down
-    }
-    else
-      return(0); // not first time, not held, not repeating
+    if ((millis() - input_last_tm) > button_hold_ms) {  // has it been held long enough?
+	
+			if ((millis() - button_down_tm) > button_hold_ms) {  // 
+				button_down_tm = millis();
+				button_hold_ms = BUT_REPEAT_MS;
+				return(3); // button held down & repeating
+			}
+			else
+				return(2); // just held
+
+		}
+		else
+      return(0); // not first time, not held yet, so return 0
   }
     
   button_pressed = button; // record new (or no) button down
-  button_hold_ms = BUT_HOLD_MS; // reset button repeat timer
-  button_down_tm = millis(); // record when it happened  
-  if (button > 0)
+  if (button > 0) {
+    input_last_tm = millis();  // record when any button was pushed
+    button_down_tm = millis(); // record when it happened  
     return(1); // first press
-  else
+		}
+  else {
+    button_hold_ms = BUT_HOLD_MS; // reset button repeat timer
     return(0); // no button down
+	}
 }
   
   

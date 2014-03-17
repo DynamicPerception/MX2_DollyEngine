@@ -288,9 +288,9 @@ int last_but_rd = 1013;  // (out of range value)
 unsigned int inp_val_mult = 1;
 
 	// when was button first pressed? (for debounce)
-unsigned long push_but_tm = 0;
+unsigned long but_push_tm = 0;
   // how long has a button been held for?
-///unsigned long hold_but_tm = 0;
+///unsigned long but_hold_tm = 0;
   // when was ui last updated on home scr?
 unsigned long ui_update_tm = 0;
   // when was cursor blinked last?
