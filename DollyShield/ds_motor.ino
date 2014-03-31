@@ -204,7 +204,7 @@ void motor_dir( byte motor, byte dir ) {
 
    // get current speed for the motor
   unsigned int m_speed = m_speeds[m_mode][motor];
-//    if( m_speed > 0 ) { // shouldn't this be checking something else????????????????
+//    if( m_speed > 0 ) { // shouldn't this be checking something else?
     if( run_status & RS_Motors_Running) {
         // motor was already moving, need to stop it first
       motor_set_speed( motor, 0 );
@@ -347,38 +347,28 @@ void stop_motor_sms() {
 } 
 
 void motor_set_ramp(byte motor, byte ramp) {
-    // set motor ramp value, adjust
-    // associated values
-
+    // set motor ramp value, adjust associated values
    
    if( motor > MAX_MOTORS )
      return;
    
-   EE.m_ramp_set[motor]   = ramp > 255 ? 255 : ramp;
+   ramp = ramp > 255 ? 255 : ramp; // limit 255
+   EE.m_ramp_set[motor] = ramp; 
+
+//Serial.print("set ramp: set "); Serial.print(EE.m_ramp_set[motor]);
+//Serial.print(", m_speed "); Serial.print(m_speeds[m_mode][motor]);
    
     // calculate speed change per shot  
    if( ramp > 0 ) {
-     m_ramp_shift[motor] = (float) m_speeds[m_mode][motor] / ramp;
-     
-       // if there's less than one step per jump,
-       // we need to skip shots between increases
-       // so determine how many shots to skip
-      
-     if( m_ramp_shift[motor] < 1 ) {
-       m_ramp_mod[motor] = ramp / m_speeds[m_mode][motor];
-       m_ramp_mod[motor] = m_ramp_mod[motor] < 2 ? 2 : m_ramp_mod[motor];
-       m_ramp_shift[motor] = 1.0;
-     }
-     else {
-       m_ramp_mod[motor] = 0;
-     }
-   
+     m_ramp_shift[motor] = (float) m_speeds[m_mode][motor] / (float) ramp;
    }
    else {
      m_ramp_shift[motor] = 0;
-     m_ramp_mod[motor]   = 0;
    }
-      
+
+//Serial.print(", shift "); Serial.print(m_ramp_shift[motor],2);
+//Serial.print(", speed "); Serial.print(m_ramp_speed[motor]);
+//Serial.println("");
 
 }  
 
@@ -476,7 +466,6 @@ void motor_run_pulsing() {
 void motor_execute_ramp_changes() {
   
       // check for ramping, and ramp up or down as needed
-      
 
   for(byte m = 0; m < MAX_MOTORS; m++) {
       // no ramp, go to next motor
@@ -488,26 +477,21 @@ void motor_execute_ramp_changes() {
       motor_set_speed(m, 0); 
       continue;  
     }
-      
+
+		float ramp_speed = 0;
       // ramp up?
     if( EE.m_ramp_set[m] >= ( shots - EE.m_lead_in[m]) ) {
-        // if ramping less than once per shot 
-      if( m_ramp_mod[m] > 0 && ( shots - EE.m_lead_in[m] ) % m_ramp_mod[m] == 0 ) {
-        motor_set_speed(m, m_speeds[m_mode][m] + 1);
-      }
-      else if( m_ramp_mod[m] == 0 ) {  
-        motor_set_speed(m, (m_ramp_shift[m] * (shots - EE.m_lead_in[m]) ) );
-      }
+      ramp_speed = m_ramp_shift[m] * (shots - EE.m_lead_in[m]); // calc new speed (float)
+			if (ramp_speed > EE.m_speeds[m_mode][m]) // probably not necessary but better safe than ...
+			  ramp_speed = EE.m_speeds[m_mode][m];
+      motor_set_speed(m, int(ramp_speed+0.5)); // set new motor speed
     }
     else if( (EE.cam_max - shots - EE.m_lead_out[m]) <= EE.m_ramp_set[m] ) {
         // ramping down, it seems
-      if( m_ramp_mod[m] > 0 && (EE.cam_max - shots - EE.m_lead_out[m]) % m_ramp_mod[m] == 0 ) {
-        byte m_spd = m_speeds[m_mode][m] > 0 ? m_speeds[m_mode][m] - 1 : 0;
-        motor_set_speed(m, m_spd);
-      }
-      else if( m_ramp_mod[m] == 0 ) {  
-        motor_set_speed(m, m_ramp_shift[m] * (EE.cam_max - shots - EE.m_lead_out[m]) );
-      }
+      ramp_speed =  m_ramp_shift[m] * (EE.cam_max - shots - EE.m_lead_out[m]); // calc new speed (float)
+			if (ramp_speed < 0) // probably not necessary but better safe than ...
+			  ramp_speed = 0;
+      motor_set_speed(m, int(ramp_speed+0.5)); // set new motor speed
     }
   }
       

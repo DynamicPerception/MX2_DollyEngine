@@ -157,7 +157,7 @@ void get_m_axis_set( byte pos, boolean save, byte motor ) {
       case 0:
           // set ramp value
         if( save == true ) {
-          motor_set_ramp(motor, cur_inp_long);
+          motor_set_ramp(motor, cur_inp_long); // validate new value and set ramping
           ee_save();
         }
 
@@ -804,7 +804,7 @@ void get_mainscr_set(byte pos, boolean save) {
         ee_save();
             // calculate speed change per shot for ramping
             // if needed - use function to update values
-        motor_set_ramp(0, EE.m_ramp_set[0]);  // should this be done when motors are started?
+//        motor_set_ramp(0, EE.m_ramp_set[0]);  // this is done when motors are started
            
       }
       
@@ -839,12 +839,12 @@ void get_mainscr_set(byte pos, boolean save) {
 
       
       if( save ) {
-        motor_set_speed(1, (unsigned int) cur_inp_long); 
+        motor_set_speed(1, (unsigned int) cur_inp_long); // called to validate value
         EE.m_speeds[m_mode][1] = m_speeds[m_mode][1];
         ee_save();
             // calculate speed change per shot for ramping
             // if needed - use function to update values
-        motor_set_ramp(1, EE.m_ramp_set[1]);
+//        motor_set_ramp(1, EE.m_ramp_set[1]); done by start_executing
       }
 
       cur_inp_long = m_speeds[m_mode][1];

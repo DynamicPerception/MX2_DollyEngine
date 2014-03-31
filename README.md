@@ -7,7 +7,7 @@ This version of the firmware is ready for compiling in Arduino 1.0+
 
 For more information, see http://dynamicperception.com
 
-MX2 Firmware 0.93W
+MX2 Firmware 0.94W
 =================
 wbp: code size reduction (ee structures), several bug fixes,<br>
   motor speed, interval time saved in ee,<br>
@@ -18,4 +18,5 @@ wbp: code size reduction (ee structures), several bug fixes,<br>
   underline cursor option<br>
   debounce external switch inputs<br>
   change "motor sl.mod" to "motor mode"<br>
-  fix bugs in manual move & backlight timeout
+  fix bugs in manual move & backlight timeout<br>
+	fix ramping bug, reset motor speed display on stop

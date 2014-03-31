@@ -86,7 +86,7 @@ void init_user_interface() {
  lcd.setCursor(0,0); 
  lcd.print("MX2 Dolly Engine");
  lcd.setCursor(0,1);
- lcd.print("  Version 0.93W ");
+ lcd.print("  Version 0.94W ");
  
    // setup button input
 
@@ -243,9 +243,9 @@ byte ui_button_check() {
   }
   else if( bt_press >= 2 ) {
     held = true;
-    handle_input(button, true);
     
     if ( bt_press == 3) {  // button repeating?
+      handle_input(button, true);
       hold_but_cnt++;
       if( hold_but_cnt >= 10 ) {
         if (inp_val_mult < 1000)

@@ -60,11 +60,11 @@
   18) debounce ext1 input (switches) - use polling instead of interrupt
   19) put dead spot back in main screen (but only if Scope enabled)
   20) rewrite button debounce/hold logic
+	21) fix ramping bug, reset motor speed display on stop
+	22) improve ramp calculations for small speed changes (ramp steps > speed)
     
 TODO:
-  *) rewrite button check/debounce?
   *) menu timeout?
-  *) remove Serial.print's
   *) wrap on setting lists?
 */
 
@@ -74,7 +74,9 @@ TODO:
 #include "merlin_mount.h"
 #include "ds_eeprom.h"
 
-#define FIRMWARE_VERSION  93
+#define FIRMWARE_VERSION 94
+  // EE version - change this to force reset of EE memory
+#define EE_VERSION 93
 
   // motor PWM
 #define MOTOR0_P 5
@@ -435,7 +437,6 @@ boolean m_cal_done = false;
 
  // ramping data
 float m_ramp_shift[2]  = {0.0,0.0};
-byte m_ramp_mod[2]     = {0,0};
 
  // for controlling pulsing and sms movement
 unsigned long on_pct[2]                = {0,0};
@@ -858,13 +859,13 @@ void start_executing() {
     // set motor direction
   motor_dir(0, EE.m_dirs[m_mode][0]);
   motor_dir(1, EE.m_dirs[m_mode][1]);
-    // set motor speed
-  ///motor_set_speed(0,m_speeds[m_mode][0]);
-  ///motor_set_speed(1,m_speeds[m_mode][1]);
+    // (re)set motor speed
+  motor_set_speed(0,EE.m_speeds[m_mode][0]);
+  motor_set_speed(1,EE.m_speeds[m_mode][1]);
     // calculate speed change per shot for ramping
     // if needed - use function to update values
-  ///motor_set_ramp(0, EE.m_ramp_set[0]);
-  ///motor_set_ramp(1, EE.m_ramp_set[1]);
+  motor_set_ramp(0, EE.m_ramp_set[0]);
+  motor_set_ramp(1, EE.m_ramp_set[1]);
   
   // turn on motors
   motor_control(0,true);
@@ -883,6 +884,9 @@ void start_executing() {
 void stop_executing() {
   run_status &= (255-RS_Running-RS_Motors_Running);
   motor_stop_all();
+	  // restore motor speeds in case we were ramping
+  m_speeds[m_mode][0] = EE.m_speeds[m_mode][0];
+  m_speeds[m_mode][1] = EE.m_speeds[m_mode][1];
 }
 
 

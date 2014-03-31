@@ -40,8 +40,6 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-//#define FIRMWARE_VERSION 93 // current firmware version defined in DollyShield.ino
-
 const float c_m_diarev=3.53;
 const float c_m_rpm=8.75;
 const float c_min_ipm=20.0;
@@ -56,7 +54,7 @@ __EESettings EE;
 #define EESet_addr EECal_addr + sizeof(EECal)
 
 __EECal EECal_default = {
- FIRMWARE_VERSION, // firmware_version;
+ EE_VERSION, // EE structure version;
  { { { {0.61914329,0.61914329},{1.0,1.0},{2.01133251,2.11453032} }, 
      { {0.61914329,0.61914329},{1.0,1.0},{2.01133251,2.11453032} },
      { {0.61914329,0.61914329},{1.0,1.0},{2.01133251,2.11453032} } }, 
@@ -66,11 +64,11 @@ __EECal EECal_default = {
  }, // m_cal_array[2][3][3][2]
  {0.69,0.69}, // m_cal_constant[2]
  {1,40}, // motor_spd_cal[2]
- FIRMWARE_VERSION, // firmware_version;
+ EE_VERSION, // EE structure version;
 };
 
 __EESettings EESet_default = {
- FIRMWARE_VERSION, // firmware_version;
+ EE_VERSION, // EE version;
  
  1.0, // cam_interval
  100, // exp_tm
@@ -114,7 +112,7 @@ __EESettings EESet_default = {
  false, // alternate menu
  false, // underline cursor
  
- FIRMWARE_VERSION, // firmware_version;
+ EE_VERSION, // EE version;
 };
 
 void ee_save()
@@ -168,23 +166,23 @@ void ee_load(void)
 	delay(2000);
 	lcd.clear();
 
-	if ((EECal.EE_check1!=FIRMWARE_VERSION) || (EECal.EE_check2!=FIRMWARE_VERSION)) { // check if EE needs to be initialized
+	if ((EECal.EE_check1!=EE_VERSION) || (EECal.EE_check2!=EE_VERSION)) { // check if EE needs to be initialized
 		for (unsigned int p=0; p<sizeof(EECal); p++) { // copy settings structure to EE memory
 			EEPROM.write(EECal_addr + p, *((uint8_t*)&EECal_default + p));
 		}
 		lcd.print("EE Cal Wrt ");
-		lcd.print(FIRMWARE_VERSION);
+		lcd.print(EE_VERSION);
 		ee_read_cal(); 
 		delay(2000);
 	}
 
-	if ((EE.EE_check1!=FIRMWARE_VERSION) || (EE.EE_check2!=FIRMWARE_VERSION)) { // check if EE needs to be initialized
+	if ((EE.EE_check1!=EE_VERSION) || (EE.EE_check2!=EE_VERSION)) { // check if EE needs to be initialized
 		for (unsigned int p=0; p<sizeof(EE); p++) { // copy settings structure to EE memory
 			EEPROM.write(EESet_addr + p, *((uint8_t*)&EESet_default + p));
 		}
 	  lcd.setCursor(0,1);
 		lcd.print("EE Set Wrt ");
-		lcd.print(FIRMWARE_VERSION);
+		lcd.print(EE_VERSION);
 		ee_read_set();
 		delay(2000);
 	}
