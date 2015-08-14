@@ -10,9 +10,9 @@ For more information, see http://dynamicperception.com
 
 MX2 Firmware 0.94X
 =================
-	Unofficial release by ReyKroona<br>
-	Configured to compile in Arduino 1.5.5<br>
-	Added ability for Merlin heads to change directions when the Change Direction trigger happens (only tested in continuous mode, not interleaved mode).
+  Unofficial release by ReyKroona<br>
+  Configured to compile in Arduino 1.5.5<br>
+  Added ability for Merlin heads to change directions when the Change Direction trigger happens (only tested in   continuous mode, not interleaved mode).
 
 
 MX2 Firmware 0.94W
