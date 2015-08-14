@@ -67,7 +67,7 @@ TODO:
   *) menu timeout?
   *) wrap on setting lists?
 */
-
+#include <Arduino.h>
 #include <LiquidCrystal.h>
 #include "MsTimer2.h"
 #include "TimerOne.h"
@@ -905,4 +905,3 @@ boolean gbtl_trigger() {
   
   return false;
 }
-
