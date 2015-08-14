@@ -86,7 +86,7 @@ void init_user_interface() {
  lcd.setCursor(0,0); 
  lcd.print("MX2 Dolly Engine");
  lcd.setCursor(0,1);
- lcd.print("  Version 0.94W ");
+ lcd.print("  Version 0.94X ");
  
    // setup button input
 
@@ -147,6 +147,34 @@ void check_switch(byte which) {
 						// switch all motor directions!
 						motor_dir(0, !EE.m_dirs[m_mode][0]);
 						motor_dir(1, !EE.m_dirs[m_mode][1]);
+
+                                                if( merlin_dir[0] == 1 ) {
+                                                merlin_set_dir(0, 0);
+                                                
+                                                }
+                                                else {
+                                                merlin_set_dir(0, 1);
+                                                
+                                                }
+                                                
+                                                if( merlin_dir[0] == 1 ) {
+                                                merlin_set_dir(1, 0);
+                                                
+                                                }
+                                                else {
+                                                merlin_set_dir(1, 1);
+                                               
+                                                }
+                                                if( merlin_speeds[0] > 0.0 ) {
+                                                    merlin_stop(0);
+                                                    merlin_run(0);
+                                                }
+                                                if( merlin_speeds[1] > 0.0 ) {
+                                                  merlin_stop(1);
+                                                  merlin_run(1);
+                                                }
+                                                
+                        
 						break;
 				}
 			}
@@ -1190,4 +1218,3 @@ void pop_menu(byte& menu, byte& pos) {
 void flush_menu() {
   memset(hist_menu, 0, sizeof(hist_menu) / sizeof(hist_menu[0]));
 }
-
